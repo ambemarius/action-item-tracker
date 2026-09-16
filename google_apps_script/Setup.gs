@@ -1,16 +1,14 @@
 /**
  * ACTION ITEM TRACKER - SETUP & INITIALIZATION SCRIPT
- * Specification Version: 1.3 (Fixed Apps Script setWrap method)
+ * Specification Version: 1.4 (Added THRIVE Action Items Seed Import)
  * 
- * Run the buildTrackerSystem() function once from Apps Script Editor
- * to automatically build all 7 tabs, apply formatting, header styles,
- * data validations, formulas, and default settings.
+ * Run seedThriveData() to populate all 36 real THRIVE organizational
+ * action items into your Google Sheet!
  */
 
 function buildTrackerSystem() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // Define Tab Names
   const tabNames = [
     "Action Tracker",
     "Form Responses",
@@ -21,7 +19,6 @@ function buildTrackerSystem() {
     "Settings"
   ];
   
-  // 1. Ensure all tabs exist
   tabNames.forEach(name => {
     let sheet = ss.getSheetByName(name);
     if (!sheet) {
@@ -29,7 +26,6 @@ function buildTrackerSystem() {
     }
   });
 
-  // Setup Individual Tabs
   setupPeopleSheet(ss.getSheetByName("People"));
   setupTeamsSheet(ss.getSheetByName("Teams"));
   setupActionTrackerSheet(ss.getSheetByName("Action Tracker"));
@@ -38,11 +34,14 @@ function buildTrackerSystem() {
   setupDashboardSheet(ss.getSheetByName("Dashboard"));
   setupFormResponsesSheet(ss.getSheetByName("Form Responses"));
   
-  SpreadsheetApp.getUi().alert("✅ Action Item Tracker with Organizational People Directory initialized successfully!");
+  // Seed the 36 real THRIVE action items
+  seedThriveData();
+
+  SpreadsheetApp.getUi().alert("✅ Action Item Tracker initialized with all 36 THRIVE action items successfully!");
 }
 
 /**
- * 1. PEOPLE SHEET SETUP (Organizational Members & Roles)
+ * 1. PEOPLE SHEET SETUP (Organizational Directory)
  */
 function setupPeopleSheet(sheet) {
   sheet.clear();
@@ -56,19 +55,19 @@ function setupPeopleSheet(sheet) {
        .setHorizontalAlignment("center");
 
   const defaultPeople = [
-    ["Arthur Pendelton", "Executive Director", "arthur@example.org", "Administration", true],
-    ["Martial Kouam", "Operations Director", "martial@example.org", "Administration", true],
-    ["Claire Vance", "Finance Manager", "claire@example.org", "Finance", true],
-    ["David Nkomo", "Senior Programs Officer", "david@example.org", "Programs", true],
-    ["Emma Watson", "Logistics & Operations Lead", "emma@example.org", "Operations", true],
-    ["Sarah Jenkins", "Communications Specialist", "sarah@example.org", "Communications", true],
-    ["Paul Mbida", "M&E Lead Evaluator", "paul@example.org", "Monitoring & Evaluation", true]
+    ["Arthur", "Executive Director / Public Health Lead", "arthur@example.org", "Public Health", true],
+    ["Martial", "Operations & Finance Lead", "martial@example.org", "Admin and Finance", true],
+    ["Marius", "Web & Data Management Lead", "marius@example.org", "Data Management", true],
+    ["Adrien", "Research & Documentation Lead", "adrien@example.org", "Public Health", true],
+    ["Sanjo", "Graphic Designer & Media Specialist", "sanjo@example.org", "Design, Media & Web", true],
+    ["Claire", "Finance Officer", "claire@example.org", "Admin and Finance", true],
+    ["All", "All Team Members", "team@example.org", "All Teams", true]
   ];
 
   sheet.getRange(2, 1, defaultPeople.length, 5).setValues(defaultPeople);
   sheet.setColumnWidth(1, 180);
-  sheet.setColumnWidth(2, 200);
-  sheet.setColumnWidth(3, 230);
+  sheet.setColumnWidth(2, 230);
+  sheet.setColumnWidth(3, 220);
   sheet.setColumnWidth(4, 180);
   sheet.setColumnWidth(5, 120);
   sheet.setFrozenRows(1);
@@ -88,12 +87,11 @@ function setupTeamsSheet(sheet) {
        .setFontWeight("bold");
 
   const defaultTeams = [
-    ["Administration", true],
-    ["Finance", true],
-    ["Programs", true],
-    ["Communications", true],
-    ["Operations", true],
-    ["Monitoring & Evaluation", true]
+    ["Public health", true],
+    ["Admin and Finance", true],
+    ["Design, media and web", true],
+    ["Data Management", true],
+    ["All teams", true]
   ];
 
   sheet.getRange(2, 1, defaultTeams.length, 2).setValues(defaultTeams);
@@ -107,7 +105,6 @@ function setupTeamsSheet(sheet) {
 function setupActionTrackerSheet(sheet) {
   sheet.clear();
   
-  // Column Headers (A to AB)
   const headers = [
     "Action ID",             // A
     "Date Created",          // B
@@ -141,7 +138,6 @@ function setupActionTrackerSheet(sheet) {
 
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   
-  // Formatting Header
   const headerRange = sheet.getRange(1, 1, 1, headers.length);
   headerRange.setBackground("#0F172A")
              .setFontColor("#FFFFFF")
@@ -153,7 +149,6 @@ function setupActionTrackerSheet(sheet) {
   sheet.setFrozenRows(1);
   sheet.setFrozenColumns(1);
 
-  // Set default column formats
   sheet.getRange("B2:B").setNumberFormat("YYYY-MM-DD HH:mm:ss");
   sheet.getRange("E2:E").setNumberFormat("YYYY-MM-DD");
   sheet.getRange("O2:O").setNumberFormat("YYYY-MM-DD");
@@ -163,60 +158,22 @@ function setupActionTrackerSheet(sheet) {
   sheet.getRange("Y2:Y").setNumberFormat("YYYY-MM-DD HH:mm:ss");
   sheet.getRange("AA2:AA").setNumberFormat("YYYY-MM-DD HH:mm:ss");
 
-  // Sample Data Row
-  const sampleRow = [
-    "ACT-2026-001",
-    new Date(),
-    "arthur@example.org",
-    "Weekly Management Meeting",
-    new Date(),
-    "Prepare and submit the Q3 financial audit report.",
-    "Final signed PDF audit report delivered to ED.",
-    "Finance",
-    "High",
-    "Arthur Pendelton",
-    "=IFERROR(VLOOKUP(J2, People!A:C, 3, FALSE), \"arthur@example.org\")",
-    "Martial Kouam",
-    "=IFERROR(VLOOKUP(L2, People!A:C, 3, FALSE), \"martial@example.org\")",
-    "Claire Vance",
-    new Date(),
-    new Date(Date.now() + 5 * 86400000), // Due in 5 days
-    "In Progress",
-    0.25,
-    "On Track",
-    5,
-    "https://drive.google.com",
-    "Data collection completed, draft pending.",
-    "",
-    new Date(),
-    "",
-    "None",
-    "",
-    "Level 0"
-  ];
-
-  sheet.getRange(2, 1, 1, sampleRow.length).setValues([sampleRow]);
-  
-  // Data Validations for easy non-manual selection
-  // Priority Dropdown
+  // Validations
   const priorityRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(["Critical", "High", "Medium", "Low"], true)
     .build();
   sheet.getRange("I2:I1000").setDataValidation(priorityRule);
 
-  // Status Dropdown
   const statusRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(["Not Started", "In Progress", "Blocked", "Completed", "On Hold", "Cancelled"], true)
     .build();
   sheet.getRange("Q2:Q1000").setDataValidation(statusRule);
 
-  // Core Team Dropdown (from Teams tab)
   const teamRule = SpreadsheetApp.newDataValidation()
     .requireValueInRange(sheet.getParent().getSheetByName("Teams").getRange("A2:A50"), true)
     .build();
   sheet.getRange("H2:H1000").setDataValidation(teamRule);
 
-  // People Dropdown (from People tab Column A - Person Name)
   const personRule = SpreadsheetApp.newDataValidation()
     .requireValueInRange(sheet.getParent().getSheetByName("People").getRange("A2:A100"), true)
     .build();
@@ -225,7 +182,118 @@ function setupActionTrackerSheet(sheet) {
 }
 
 /**
- * 4. SETTINGS SHEET SETUP
+ * 4. SEED THRIVE 36 ACTION ITEMS INTO SHEET
+ */
+function seedThriveData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Action Tracker");
+  if (!sheet) return;
+
+  // Clear existing rows (keep header)
+  if (sheet.getLastRow() > 1) {
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, 28).clearContent();
+  }
+
+  const thriveItems = [
+    [1, "Prepare the THRIVE August 2026-August 2027 logic model that will be used to develop the set-up and institutional build and the pragmatic delivery and field areas of work with core team members", "All teams", "Critical", "Arthur", "", "Need help", "", "Not Started", "2026-09-30", ""],
+    [2, "Register THRIVE at the Centre des Impôts (Tax Office) and obtain the Unique Identification Number (NIU)", "Admin and Finance", "Critical", "Martial", "Arthur", "", "", "Not Started", "", ""],
+    [3, "Secure a Tax Clearance Certificate (Attestation de Non-Redevance)", "Admin and Finance", "Critical", "Martial", "Arthur", "", "", "Not Started", "", ""],
+    [4, "Register with the CNPS (Caisse Nationale de Prévoyance Sociale)", "Admin and Finance", "Medium", "Martial", "Arthur", "", "", "Not Started", "", ""],
+    [5, "Sign a Memorandum of Understanding (MoU) with the regional delegate of public health of Adamawa", "Public health", "Critical", "Arthur", "", "", "", "In Progress", "2026-09-30", ""],
+    [6, "Propose a number of banks where THRIVE could open their bank accounts with advantages and possible disadvantages", "Admin and Finance", "Critical", "Martial", "Arthur", "", "", "Not Started", "", ""],
+    [7, "Open a Dual-Signatory Corporate Bank Account ( Executive Director and Treasurer)", "Admin and Finance", "Critical", "Martial", "Arthur", "", "", "Not Started", "", ""],
+    [8, "Prepare urgent admin and finance general management plan, documents and tools", "Admin and Finance", "Critical", "Martial", "Arthur", "", "", "Not Started", "", ""],
+    [9, "Visit the DMO of Ngaoundere urbain, Ngaoundere rurale and Dang with the regional MoU to review DHIS two gaps for thier districs, Identify and documents clear gaps related to MNCH, Asthma and COPD and obtain DHIS 2 data", "Public health", "Critical", "Arthur", "", "", "", "Not Started", "2026-09-30", ""],
+    [10, "Prepare and sign annual operational plans or the THRIVE strategic 2026-2029 plan with each DMO tailored to district realities", "Public health", "Critical", "Arthur", "", "", "", "Not Started", "2026-09-30", ""],
+    [11, "Conduct a thorough literature review on identified innovative spirometry and peak flow meters that may require research to validate their products and email them for a possible collaboration", "Public health", "Medium", "Arthur", "", "", "", "On Hold", "2026-09-30", ""],
+    [12, "Create and propose the THRIVE Website for review to the core team and volunteers", "Design, media and web", "Critical", "Marius", "", "", "", "Not Started", "", ""],
+    [13, "Revised the organisation website proposal and give feedback for improvement", "All teams", "Critical", "All", "", "", "", "Not Started", "", ""],
+    [14, "Select the company where the organisation domain name will be bought and who will host the organisation website", "Design, media and web", "Critical", "Marius", "", "", "", "In Progress", "", ""],
+    [15, "Use the domain name of the website and the organisation papers to apply for a free Google Workspace for non-profits", "Public health", "Critical", "Arthur", "", "", "https://strategy.amref.org/our-strategy/", "Not Started", "2026-09-15", ""],
+    [16, "Share resources on logical models and operational plan development", "Public health", "Critical", "Arthur", "", "", "", "Completed", "2026-09-01", ""],
+    [17, "Circulate the organisation’s bylaws and follow up on the revised version submitted to the Divisional Office", "Public health", "Critical", "Arthur", "", "", "", "In Progress", "2026-09-15", ""],
+    [18, "Share relevant job aids and documentation on gender equality", "Public health", "Medium", "Arthur", "", "", "", "Completed", "2026-09-01", ""],
+    [19, "Propose several organisation colours to the core team and volunteers for review and adoption", "Design, media and web", "Critical", "Sanjo", "", "", "", "Not Started", "", ""],
+    [20, "Propose several organisation logo samples to the core team and volunteers for review and adoption", "Design, media and web", "Critical", "Sanjo", "", "", "", "Not Started", "2026-09-15", ""],
+    [21, "Propose several organisation roll-up banner templates to the core team and volunteers for review and adoption", "Design, media and web", "Critical", "Sanjo", "", "", "", "Not Started", "", ""],
+    [22, "Recruit a volunteer to support the graphic designer", "All teams", "Medium", "Arthur", "", "", "", "On Hold", "", ""],
+    [23, "Engage one major community leader from each of the health districts of Ngaoundere rural, Ngaoundere urbain and Dang as THRIVE partners", "Public health", "High", "Arthur", "", "", "", "Not Started", "2026-09-30", ""],
+    [24, "Organise a dedicated grant-development meeting", "All teams", "High", "Arthur", "", "", "", "In Progress", "", ""],
+    [25, "Create a WhatsApp community with subgroups for the organisation’s different teams and workstreams", "All teams", "Critical", "Arthur", "", "", "", "Completed", "2026-09-03", ""],
+    [26, "Prepare a number of organisation moto and share with the team for review and approval", "Public health", "Critical", "Arthur", "", "", "", "Not Started", "2026-09-04", ""],
+    [27, "Create a master action list for the organisation where action items from all our meetings will be captured for easy follow-up and evaluation", "Public health", "Critical", "Arthur", "Martial", "All", "https://docs.google.com/spreadsheets/d/1Rzm9KQ6kjcXJEfoMjYH67Qvv1qo6KyIiMASueOQppHQ/edit?gid=27097374#gid=27097374", "Completed", "2026-09-01", ""],
+    [28, "Share the current organisation documentation framework with the team with a message on how to use the framework", "Public health", "Critical", "Arthur", "Martial", "All", "", "Completed", "2026-09-01", ""],
+    [29, "Create and share a team charter for review and approval", "Public health", "Critical", "Arthur", "Martial", "All", "", "Completed", "2026-09-04", ""],
+    [30, "Propose several free virtual workplaces (project management and communication tools) that could be currently used by the team", "Data Management", "Critical", "Marius", "", "", "", "In Progress", "", ""],
+    [31, "Create and share a nomenclature and coding system for organisational meeting minutes/notes and reports", "Public health", "Critical", "Adrien", "", "", "", "In Progress", "", ""],
+    [32, "Share the current grant opportunities at hand with the team and brainstorm on how to start the writing process", "Public health", "Critical", "Arthur", "", "", "", "Completed", "2026-09-04", ""],
+    [33, "Conduct a deep literature review on existing Cameroon MNCH data from UN, MINSANTE and INS and propose potential areas for grant writing", "Public health", "Critical", "Adrien", "", "", "", "In Progress", "2026-09-20", ""],
+    [34, "Use 2023-2026 MNCH data to MAP organisation data with 2027-2030 visual projections", "Data Management", "Critical", "Marius", "", "", "", "Not Started", "", ""],
+    [35, "Establish and document a structured file directory path for all institutional assets in shared Google Drive", "Public health", "Critical", "Arthur", "", "", "", "Not Started", "2026-11-01", ""],
+    [36, "Recruit a volunteer to support the financial team", "All teams", "Medium", "Arthur", "", "", "", "Not Started", "", ""]
+  ];
+
+  const rows = [];
+  const now = new Date();
+
+  for (let i = 0; i < thriveItems.length; i++) {
+    const item = thriveItems[i];
+    const sn = item[0];
+    const actionId = "ACT-2026-" + ("000" + sn).slice(-3);
+    const actionItem = item[1];
+    const team = item[2];
+    const priority = item[3] === "Very high" ? "Critical" : item[3];
+    const resp = item[4];
+    const acc = item[5] || resp;
+    const communicate = item[6];
+    const link = item[7];
+    const status = item[8];
+    const dueStr = item[9];
+    const comment = item[10];
+
+    const pct = (status === "Completed") ? 1.0 : (status === "In Progress" ? 0.5 : 0.0);
+    const dueDate = dueStr ? new Date(dueStr) : new Date(Date.now() + 14 * 86400000);
+    const health = calculateHealth(dueDate, status, now);
+    const daysLeft = calculateDaysRemaining(dueDate, status);
+
+    rows.push([
+      actionId,
+      now,
+      "arthur@example.org",
+      "THRIVE Core Meeting",
+      now,
+      actionItem,
+      actionItem,
+      team,
+      priority,
+      resp,
+      "=IFERROR(VLOOKUP(J" + (i + 2) + ", People!A:C, 3, FALSE), \"\")",
+      acc,
+      "=IFERROR(VLOOKUP(L" + (i + 2) + ", People!A:C, 3, FALSE), \"\")",
+      communicate,
+      now,
+      dueDate,
+      status,
+      pct,
+      health,
+      daysLeft,
+      link,
+      comment,
+      "",
+      now,
+      (status === "Completed" ? now : ""),
+      "None",
+      "",
+      "Level 0"
+    ]);
+  }
+
+  sheet.getRange(2, 1, rows.length, 28).setValues(rows);
+  Logger.log("Successfully seeded 36 THRIVE Action Items!");
+}
+
+/**
+ * 5. SETTINGS SHEET SETUP
  */
 function setupSettingsSheet(sheet) {
   sheet.clear();
@@ -238,13 +306,13 @@ function setupSettingsSheet(sheet) {
        .setFontWeight("bold");
 
   const settings = [
-    ["Organization Name", "YOUR ORGANIZATION"],
+    ["Organization Name", "THRIVE"],
     ["Reminder Hour", 8],
     ["Due Soon Days", 3],
     ["Escalation After Days", 3],
     ["Second Escalation After Days", 7],
-    ["Reminder Email Sender Name", "Action Item Tracker"],
-    ["Management Escalation Email", "management@example.org"]
+    ["Reminder Email Sender Name", "THRIVE Action Tracker"],
+    ["Management Escalation Email", "arthur@example.org"]
   ];
 
   sheet.getRange(2, 1, settings.length, 2).setValues(settings);
@@ -254,7 +322,7 @@ function setupSettingsSheet(sheet) {
 }
 
 /**
- * 5. REMINDER LOG SHEET SETUP
+ * 6. REMINDER LOG SHEET SETUP
  */
 function setupReminderLogSheet(sheet) {
   sheet.clear();
@@ -269,16 +337,15 @@ function setupReminderLogSheet(sheet) {
 }
 
 /**
- * 6. DASHBOARD SHEET SETUP
+ * 7. DASHBOARD SHEET SETUP
  */
 function setupDashboardSheet(sheet) {
   sheet.clear();
-  sheet.getRange("A1").setValue("ACTION ITEM TRACKER DASHBOARD")
+  sheet.getRange("A1").setValue("THRIVE ACTION ITEM TRACKER DASHBOARD")
        .setFontSize(16)
        .setFontWeight("bold")
        .setFontColor("#0F172A");
   
-  // KPI Metrics Table Headers
   const kpis = [
     ["Total Actions", "=COUNTA('Action Tracker'!A2:A)"],
     ["Completed", "=COUNTIF('Action Tracker'!Q2:Q, \"Completed\")"],
@@ -298,7 +365,7 @@ function setupDashboardSheet(sheet) {
 }
 
 /**
- * 7. FORM RESPONSES SHEET SETUP
+ * 8. FORM RESPONSES SHEET SETUP
  */
 function setupFormResponsesSheet(sheet) {
   sheet.setFrozenRows(1);

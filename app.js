@@ -1,82 +1,61 @@
 /**
  * ACTION ITEM TRACKER - FRONTEND CONTROLLER (app.js)
- * Interactive UI Engine, Data Handler & Live Google Sheets Sync
+ * Interactive UI Engine, Data Handler & Real THRIVE Action Items
  */
 
-// Google Apps Script Web App Endpoint Configuration
-// Replace with your published Google Apps Script Web App URL to sync live with Google Sheets!
 let GOOGLE_SHEETS_WEB_APP_URL = localStorage.getItem('google_sheet_webapp_url') || "";
 
-// Initial Fallback Organizational People Store
+// Organizational Directory (THRIVE Team Members)
 const defaultPeople = [
-    { name: "Arthur Pendelton", role: "Executive Director", email: "arthur@example.org", team: "Administration" },
-    { name: "Martial Kouam", role: "Operations Director", email: "martial@example.org", team: "Administration" },
-    { name: "Claire Vance", role: "Finance Manager", email: "claire@example.org", team: "Finance" },
-    { name: "David Nkomo", role: "Senior Programs Officer", email: "david@example.org", team: "Programs" },
-    { name: "Emma Watson", role: "Logistics Lead", email: "emma@example.org", team: "Operations" },
-    { name: "Sarah Jenkins", role: "Communications Specialist", email: "sarah@example.org", team: "Communications" },
-    { name: "Paul Mbida", role: "M&E Lead Evaluator", email: "paul@example.org", team: "Monitoring & Evaluation" }
+    { name: "Arthur", role: "Executive Director / Public Health Lead", email: "arthur@example.org", team: "Public health" },
+    { name: "Martial", role: "Operations & Finance Lead", email: "martial@example.org", team: "Admin and Finance" },
+    { name: "Marius", role: "Web & Data Management Lead", email: "marius@example.org", team: "Data Management" },
+    { name: "Adrien", role: "Research & Documentation Lead", email: "adrien@example.org", team: "Public health" },
+    { name: "Sanjo", role: "Graphic Designer & Media Specialist", email: "sanjo@example.org", team: "Design, media and web" },
+    { name: "Claire", role: "Finance Officer", email: "claire@example.org", team: "Admin and Finance" },
+    { name: "All", role: "All Team Members", email: "team@example.org", team: "All teams" }
 ];
 
-// Initial Fallback Sample Actions
+// All 36 Real THRIVE Action Items
 const defaultActions = [
-    {
-        id: "ACT-2026-001",
-        createdDate: "2026-09-15",
-        createdBy: "arthur@example.org",
-        meeting: "Weekly Management Meeting",
-        meetingDate: "2026-09-15",
-        actionItem: "Prepare and submit the Q3 financial audit report.",
-        deliverable: "Final signed PDF audit report delivered to ED.",
-        team: "Finance",
-        priority: "High",
-        responsible: "Arthur Pendelton",
-        respRole: "Executive Director",
-        respEmail: "arthur@example.org",
-        accountable: "Martial Kouam",
-        accEmail: "martial@example.org",
-        supporting: "Claire Vance",
-        startDate: "2026-09-15",
-        dueDate: "2026-09-22",
-        status: "In Progress",
-        pctComplete: 60,
-        health: "On Track",
-        daysRemaining: 6,
-        link: "https://drive.google.com",
-        latestUpdate: "Draft report compiled, pending review.",
-        blocker: "",
-        lastUpdated: "2026-09-16"
-    },
-    {
-        id: "ACT-2026-002",
-        createdDate: "2026-09-14",
-        createdBy: "martial@example.org",
-        meeting: "Operations Sync",
-        meetingDate: "2026-09-14",
-        actionItem: "Deploy backup generator at main data center.",
-        deliverable: "Generator online with verified 24h run test.",
-        team: "Operations",
-        priority: "Critical",
-        responsible: "Emma Watson",
-        respRole: "Logistics Lead",
-        respEmail: "emma@example.org",
-        accountable: "Martial Kouam",
-        accEmail: "martial@example.org",
-        supporting: "Tech Vendor",
-        startDate: "2026-09-10",
-        dueDate: "2026-09-15",
-        status: "In Progress",
-        pctComplete: 80,
-        health: "Overdue",
-        daysRemaining: -1,
-        link: "",
-        latestUpdate: "Fuel tank delivered, wiring delayed.",
-        blocker: "",
-        lastUpdated: "2026-09-15"
-    }
+    { id: "ACT-2026-001", actionItem: "Prepare the THRIVE August 2026-August 2027 logic model that will be used to develop the set-up and institutional build...", deliverable: "Logic model for THRIVE 2026-2027", team: "All teams", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-30", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 14, link: "", latestUpdate: "Need help", blocker: "" },
+    { id: "ACT-2026-002", actionItem: "Register THRIVE at the Centre des Impôts (Tax Office) and obtain the Unique Identification Number (NIU)", deliverable: "NIU Tax Number Certificate", team: "Admin and Finance", priority: "Critical", responsible: "Martial", respRole: "Operations Lead", respEmail: "martial@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-25", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 9, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-003", actionItem: "Secure a Tax Clearance Certificate (Attestation de Non-Redevance)", deliverable: "Signed Tax Clearance Certificate", team: "Admin and Finance", priority: "Critical", responsible: "Martial", respRole: "Operations Lead", respEmail: "martial@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-28", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 12, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-004", actionItem: "Register with the CNPS (Caisse Nationale de Prévoyance Sociale)", deliverable: "CNPS Organizational Registration", team: "Admin and Finance", priority: "Medium", responsible: "Martial", respRole: "Operations Lead", respEmail: "martial@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-10-15", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 29, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-005", actionItem: "Sign a Memorandum of Understanding (MoU) with the regional delegate of public health of Adamawa", deliverable: "Signed Regional Public Health MoU", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-30", status: "In Progress", pctComplete: 50, health: "On Track", daysRemaining: 14, link: "", latestUpdate: "MoU draft sent to Regional Delegate", blocker: "" },
+    { id: "ACT-2026-006", actionItem: "Propose a number of banks where THRIVE could open their bank accounts with advantages and possible disadvantages", deliverable: "Banking Comparison Proposal", team: "Admin and Finance", priority: "Critical", responsible: "Martial", respRole: "Operations Lead", respEmail: "martial@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-20", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 4, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-007", actionItem: "Open a Dual-Signatory Corporate Bank Account ( Executive Director and Treasurer)", deliverable: "Active Corporate Dual-Signatory Bank Account", team: "Admin and Finance", priority: "Critical", responsible: "Martial", respRole: "Operations Lead", respEmail: "martial@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-10-05", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 19, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-008", actionItem: "Prepare urgent admin and finance general management plan, documents and tools", "deliverable": "Admin & Finance Management Toolkit", team: "Admin and Finance", priority: "Critical", responsible: "Martial", respRole: "Operations Lead", respEmail: "martial@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-30", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 14, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-009", actionItem: "Visit the DMO of Ngaoundere urbain, Ngaoundere rurale and Dang with the regional MoU to review DHIS two gaps", deliverable: "DHIS 2 Gap Assessment & Data Extract", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-30", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 14, link: "", latestUpdate: "Pending DMO schedule", blocker: "" },
+    { id: "ACT-2026-010", actionItem: "Prepare and sign annual operational plans or the THRIVE strategic 2026-2029 plan with each DMO", deliverable: "Signed Annual Operational Plans (2026-2029)", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-30", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 14, link: "", latestUpdate: "Pending DMO review", blocker: "" },
+    { id: "ACT-2026-011", actionItem: "Conduct a thorough literature review on identified innovative spirometry and peak flow meters", deliverable: "Spirometry Review Report & Outreach Emails", team: "Public health", priority: "Medium", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-30", status: "On Hold", pctComplete: 20, health: "On Hold", daysRemaining: 14, link: "", latestUpdate: "On hold for tech specs", blocker: "" },
+    { id: "ACT-2026-012", actionItem: "Create and propose the THRIVE Website for review to the core team and volunteers", deliverable: "Working THRIVE Website Prototype", team: "Design, media and web", priority: "Critical", responsible: "Marius", respRole: "Web & Data Lead", respEmail: "marius@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-25", status: "In Progress", pctComplete: 70, health: "On Track", daysRemaining: 9, link: "", latestUpdate: "Frontend layout completed", blocker: "" },
+    { id: "ACT-2026-013", actionItem: "Revised the organisation website proposal and give feedback for improvement", deliverable: "Website Review Feedback Document", team: "All teams", priority: "Critical", responsible: "All", respRole: "All Members", respEmail: "team@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-28", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 12, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-014", actionItem: "Select the company where the organisation domain name will be bought and who will host the organisation website", deliverable: "Domain & Hosting Provider Selection", team: "Design, media and web", priority: "Critical", responsible: "Marius", respRole: "Web & Data Lead", respEmail: "marius@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-18", status: "In Progress", pctComplete: 60, health: "On Track", daysRemaining: 2, link: "", latestUpdate: "Comparing Cloudflare vs Namecheap", blocker: "" },
+    { id: "ACT-2026-015", actionItem: "Use the domain name of the website and the organisation papers to apply for a free Google Workspace for non-profits", deliverable: "Approved Google Workspace Non-Profit Account", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-15", status: "Not Started", pctComplete: 0, health: "Overdue", daysRemaining: -1, link: "https://strategy.amref.org/our-strategy/", latestUpdate: "Pending domain setup", blocker: "" },
+    { id: "ACT-2026-016", actionItem: "Share resources on logical models and operational plan development", deliverable: "Logical Models & Operational Plan Resource Pack", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-01", status: "Completed", pctComplete: 100, health: "Completed", daysRemaining: "—", link: "", latestUpdate: "Resources shared in WhatsApp group", blocker: "" },
+    { id: "ACT-2026-017", actionItem: "Circulate the organisation’s bylaws and follow up on the revised version submitted to the Divisional Office", deliverable: "Approved Registered Bylaws", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-15", status: "In Progress", pctComplete: 75, health: "Overdue", daysRemaining: -1, link: "", latestUpdate: "Follow-up at Divisional Office pending", blocker: "" },
+    { id: "ACT-2026-018", actionItem: "Share relevant job aids and documentation on gender equality", deliverable: "Gender Equality Job Aids & Policy Docs", team: "Public health", priority: "Medium", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-01", status: "Completed", pctComplete: 100, health: "Completed", daysRemaining: "—", link: "", latestUpdate: "Docs shared with team", blocker: "" },
+    { id: "ACT-2026-019", actionItem: "Propose several organisation colours to the core team and volunteers for review and adoption", deliverable: "Brand Color Palette Options", team: "Design, media and web", priority: "Critical", responsible: "Sanjo", respRole: "Graphic Designer", respEmail: "sanjo@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-20", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 4, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-020", actionItem: "Propose several organisation logo samples to the core team and volunteers for review and adoption", deliverable: "Official Logo Samples", team: "Design, media and web", priority: "Critical", responsible: "Sanjo", respRole: "Graphic Designer", respEmail: "sanjo@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-15", status: "Not Started", pctComplete: 0, health: "Overdue", daysRemaining: -1, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-021", actionItem: "Propose several organisation roll-up banner templates for review and adoption", deliverable: "Roll-up Banner Templates", team: "Design, media and web", priority: "Critical", responsible: "Sanjo", respRole: "Graphic Designer", respEmail: "sanjo@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-25", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 9, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-022", actionItem: "Recruit a volunteer to support the graphic designer", deliverable: "Graphic Design Volunteer Recruited", team: "All teams", priority: "Medium", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-10-01", status: "On Hold", pctComplete: 10, health: "On Hold", daysRemaining: 15, link: "", latestUpdate: "Drafting role description", blocker: "" },
+    { id: "ACT-2026-023", actionItem: "Engage one major community leader from health districts of Ngaoundere rural, Ngaoundere urbain and Dang", deliverable: "Community Partnership Engagement", team: "Public health", priority: "High", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-30", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 14, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-024", actionItem: "Organise a dedicated grant-development meeting", deliverable: "Grant Writing Strategy & Team Minutes", team: "All teams", priority: "High", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-22", status: "In Progress", pctComplete: 40, health: "On Track", daysRemaining: 6, link: "", latestUpdate: "Agenda prepared", blocker: "" },
+    { id: "ACT-2026-025", actionItem: "Create a WhatsApp community with subgroups for the organisation’s different teams and workstreams", deliverable: "Active WhatsApp Community & Subgroups", team: "All teams", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-03", status: "Completed", pctComplete: 100, health: "Completed", daysRemaining: "—", link: "", latestUpdate: "WhatsApp groups active", blocker: "" },
+    { id: "ACT-2026-026", actionItem: "Prepare a number of organisation moto and share with the team for review and approval", deliverable: "Approved Organizational Motto", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-04", status: "Not Started", pctComplete: 0, health: "Overdue", daysRemaining: -12, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-027", actionItem: "Create a master action list for the organisation where action items from all our meetings will be captured", deliverable: "Live Action Item Tracker", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Martial", startDate: "2026-09-01", dueDate: "2026-09-01", status: "Completed", pctComplete: 100, health: "Completed", daysRemaining: "—", link: "https://docs.google.com/spreadsheets/d/1Rzm9KQ6kjcXJEfoMjYH67Qvv1qo6KyIiMASueOQppHQ/edit?gid=27097374#gid=27097374", latestUpdate: "Tracker online & operational", blocker: "" },
+    { id: "ACT-2026-028", actionItem: "Share the current organisation documentation framework with the team with a message on how to use it", deliverable: "Documentation Framework Guide", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Martial", startDate: "2026-09-01", dueDate: "2026-09-01", status: "Completed", pctComplete: 100, health: "Completed", daysRemaining: "—", link: "", latestUpdate: "Shared in group", blocker: "" },
+    { id: "ACT-2026-029", actionItem: "Create and share a team charter for review and approval", deliverable: "Approved THRIVE Team Charter", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Martial", startDate: "2026-09-01", dueDate: "2026-09-04", status: "Completed", pctComplete: 100, health: "Completed", daysRemaining: "—", link: "", latestUpdate: "Charter adopted", blocker: "" },
+    { id: "ACT-2026-030", actionItem: "Propose several free virtual workplaces (project management and communication tools)", deliverable: "Virtual Workplace Tool Proposal", team: "Data Management", priority: "Critical", responsible: "Marius", respRole: "Web & Data Lead", respEmail: "marius@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-22", status: "In Progress", pctComplete: 60, health: "On Track", daysRemaining: 6, link: "", latestUpdate: "Testing Slack vs Trello vs Notion", blocker: "" },
+    { id: "ACT-2026-031", actionItem: "Create and share a nomenclature and coding system for organisational meeting minutes/notes and reports", deliverable: "Document Coding Nomenclature Standard", team: "Public health", priority: "Critical", responsible: "Adrien", respRole: "Research & Doc Lead", respEmail: "adrien@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-25", status: "In Progress", pctComplete: 50, health: "On Track", daysRemaining: 9, link: "", latestUpdate: "Draft coding guide prepared", blocker: "" },
+    { id: "ACT-2026-032", actionItem: "Share current grant opportunities at hand with the team and brainstorm writing process", deliverable: "Grant Pipeline List & Brainstorming Session", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-04", status: "Completed", pctComplete: 100, health: "Completed", daysRemaining: "—", link: "", latestUpdate: "Opportunities shared", blocker: "" },
+    { id: "ACT-2026-033", actionItem: "Conduct deep literature review on existing Cameroon MNCH data from UN, MINSANTE and INS for grant writing", deliverable: "Cameroon MNCH Literature Review & Links Sheet", team: "Public health", priority: "Critical", responsible: "Adrien", respRole: "Research & Doc Lead", respEmail: "adrien@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-20", status: "In Progress", pctComplete: 80, health: "On Track", daysRemaining: 4, link: "", latestUpdate: "Populating Cam Health Stats sheet", blocker: "" },
+    { id: "ACT-2026-034", actionItem: "Use 2023-2026 MNCH data to MAP organisation data with 2027-2030 visual projections", deliverable: "MNCH Visual Projection Model (2027-2030)", team: "Data Management", priority: "Critical", responsible: "Marius", respRole: "Web & Data Lead", respEmail: "marius@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-10-10", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 24, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-035", actionItem: "Establish and document a structured file directory path for all institutional assets in shared Google Drive", deliverable: "Google Drive File Directory Structure Manual", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-11-01", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 46, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-036", actionItem: "Recruit a volunteer to support the financial team", deliverable: "Finance Volunteer Recruited", team: "All teams", priority: "Medium", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-10-15", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 29, link: "", latestUpdate: "", blocker: "" }
 ];
 
-// App Stores
 let actionsStore = [];
 let peopleStore = [];
 
@@ -95,7 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Fetch Live Data from Google Sheets API
 async function fetchFromGoogleSheets() {
     if (!GOOGLE_SHEETS_WEB_APP_URL) return;
     try {
@@ -114,7 +92,7 @@ async function fetchFromGoogleSheets() {
             populatePeopleDropdowns();
             renderDashboard();
             renderTable();
-            console.log("✅ Successfully synced live data from Google Sheets!");
+            console.log("✅ Synced live data from Google Sheets API!");
         }
     } catch (e) {
         console.warn("Could not sync from Google Sheets API:", e);
@@ -133,7 +111,6 @@ function saveGoogleSheetsUrl() {
     }
 }
 
-// Load / Save Local Storage
 function loadStore() {
     const savedActions = localStorage.getItem('action_tracker_items');
     if (savedActions) {
@@ -170,11 +147,9 @@ function initDates() {
     document.getElementById('newDueDate').value = due7.toISOString().split('T')[0];
 }
 
-// ORGANIZATIONAL PEOPLE DIRECTORY MANAGER
 function populatePeopleDropdowns() {
     const respSelect = document.getElementById('newResponsible');
     const accSelect = document.getElementById('newAccountable');
-
     if (!respSelect || !accSelect) return;
 
     const optionsHtml = peopleStore.map(p => 
@@ -239,7 +214,6 @@ function openPeopleModal() {
     openModal('peopleModal');
 }
 
-// HEALTH CALCULATION
 function calculateHealth(item) {
     if (item.status === 'Completed') return 'Completed';
     if (item.status === 'Blocked') return 'Blocked';
@@ -283,7 +257,6 @@ function recalculateAllHealth() {
     saveStore();
 }
 
-// DASHBOARD METRICS & CANVAS CHARTS
 function renderDashboard() {
     const total = actionsStore.length;
     const completed = actionsStore.filter(a => a.status === 'Completed').length;
@@ -469,7 +442,6 @@ function drawTeamChart() {
     });
 }
 
-// RENDER MASTER TABLE
 function renderTable() {
     const tbody = document.getElementById('tableBody');
     const search = document.getElementById('searchInput').value.toLowerCase();
@@ -513,7 +485,7 @@ function renderTable() {
             </td>
             <td>${escapeHtml(item.accountable)}</td>
             <td>
-                <small style="color:#94A3B8">Due: ${item.dueDate}</small>
+                <small style="color:#94A3B8">Due: ${item.dueDate || 'N/A'}</small>
             </td>
             <td><span class="badge badge-${badgeClass(item.status)}">${item.status}</span></td>
             <td>
@@ -535,7 +507,6 @@ function filterTable() {
     renderTable();
 }
 
-// ACTION SUBMISSION HANDLERS
 function generateNextId() {
     const year = new Date().getFullYear();
     const prefix = `ACT-${year}-`;
@@ -597,7 +568,6 @@ async function handleNewActionSubmit(e) {
     renderDashboard();
     renderTable();
 
-    // Post to Google Sheets if API URL is set
     if (GOOGLE_SHEETS_WEB_APP_URL) {
         try {
             await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
@@ -624,7 +594,6 @@ async function handleNewActionSubmit(e) {
                     ]
                 })
             });
-            console.log("Posted new action to Google Sheet API");
         } catch (e) { console.warn("Failed to post to Google Sheets API:", e); }
     }
 
@@ -644,7 +613,7 @@ function openUpdateModal(id) {
     document.getElementById('updatePct').value = item.pctComplete;
     document.getElementById('updateProgress').value = item.latestUpdate || '';
     document.getElementById('updateBlocker').value = item.blocker || '';
-    document.getElementById('updateDueDate').value = item.dueDate;
+    document.getElementById('updateDueDate').value = item.dueDate || '';
     document.getElementById('updateLink').value = item.link || '';
 
     toggleBlockerField();
@@ -688,7 +657,6 @@ async function handleUpdateActionSubmit(e) {
     renderDashboard();
     renderTable();
 
-    // Post Update to Google Sheets if API URL is set
     if (GOOGLE_SHEETS_WEB_APP_URL) {
         try {
             await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
@@ -709,14 +677,12 @@ async function handleUpdateActionSubmit(e) {
                     ]
                 })
             });
-            console.log("Posted update to Google Sheet API");
         } catch (e) { console.warn("Failed to post update to Google Sheets API:", e); }
     }
 
     alert(`✅ Action Item ${id} Updated Successfully!`);
 }
 
-// UTILITY FUNCTIONS
 function openModal(modalId) {
     document.getElementById(modalId).classList.add('active');
 }
@@ -779,8 +745,8 @@ async function loadAppsScriptCode() {
         const codeText = await codeRes.text();
         document.getElementById('codeCodeText').innerText = codeText;
     } catch (e) {
-        document.getElementById('setupCodeText').innerText = "// Fetch failed. Please refer to google_apps_script/Setup.gs file directly.";
-        document.getElementById('codeCodeText').innerText = "// Fetch failed. Please refer to google_apps_script/Code.gs file directly.";
+        document.getElementById('setupCodeText').innerText = "// Refer to google_apps_script/Setup.gs file";
+        document.getElementById('codeCodeText').innerText = "// Refer to google_apps_script/Code.gs file";
     }
 }
 
