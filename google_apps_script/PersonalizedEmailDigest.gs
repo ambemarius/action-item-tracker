@@ -1,6 +1,6 @@
 /**
  * ACTION ITEM TRACKER - PERSONALIZED EMAIL DIGEST AUTOMATION
- * Specification Version: 1.0
+ * Specification Version: 1.1 (Fixed Regex Syntax Error on Line 321)
  * 
  * Features:
  * - Generates a rich, responsive HTML Email Dashboard for each team member.
@@ -70,7 +70,6 @@ function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
     const data = trackerSheet.getDataRange().getValues();
     const userTasks = [];
 
-    // Filter tasks assigned to this person (or all tasks if test mode and user has few)
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
       if (!row[0]) continue;
@@ -79,7 +78,6 @@ function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
       const acc = (row[11] || "").toString().trim().toLowerCase();
       const searchName = personName.trim().toLowerCase();
 
-      // Match responsible or accountable, or match Marius/Arthur
       const isMatch = resp.includes(searchName) || acc.includes(searchName) || searchName.includes(resp) || resp === "all" || (isTest && (resp.includes("marius") || resp.includes("arthur") || i <= 10));
 
       if (isMatch) {
@@ -101,18 +99,15 @@ function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
       }
     }
 
-    // Calculate Personal Metrics
     const total = userTasks.length;
     const completed = userTasks.filter(t => t.status === "Completed").length;
     const inProgress = userTasks.filter(t => t.status === "In Progress").length;
     const overdue = userTasks.filter(t => t.health === "Overdue").length;
     const notStarted = userTasks.filter(t => t.status === "Not Started").length;
 
-    // Build Rich HTML Email
     const htmlBody = buildHtmlEmailBody(personName, userTasks, total, completed, inProgress, overdue, notStarted);
     const textBody = `Hello ${personName},\n\nHere is your THRIVE Action Items Summary Digest.\nTotal Tasks: ${total} | Completed: ${completed} | In Progress: ${inProgress} | Overdue: ${overdue}\n\nPlease check your email viewer for the full interactive table.`;
 
-    // Send Email via Gmail
     MailApp.sendEmail({
       to: recipientEmail,
       subject: `📊 THRIVE Action Items Digest — ${personName} (${overdue > 0 ? overdue + ' OVERDUE' : 'Overview'})`,
@@ -131,9 +126,6 @@ function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
  * Builds HTML Email Body Template
  */
 function buildHtmlEmailBody(name, tasks, total, completed, inProgress, overdue, notStarted) {
-  const primaryColor = "#6366F1";
-  const darkBg = "#0F172A";
-
   let tableRowsHtml = "";
   if (tasks.length === 0) {
     tableRowsHtml = `<tr><td colspan="7" style="padding: 20px; text-align: center; color: #94A3B8;">✨ You have no outstanding action items assigned at this time!</td></tr>`;
@@ -270,7 +262,6 @@ function buildHtmlEmailBody(name, tasks, total, completed, inProgress, overdue, 
   `;
 }
 
-// Color Utility Helpers for HTML Email
 function getStatusBgColor(status) {
   switch (status) {
     case 'Completed': return 'rgba(16, 185, 129, 0.2)';
@@ -318,5 +309,5 @@ function formatDateStr(d) {
 }
 
 function escapeHtmlStr(str) {
-  return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace/>/g, "&gt;");
+  return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
