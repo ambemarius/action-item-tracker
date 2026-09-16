@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Action Item Tracker — Management System</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Top Navigation Header -->
+    <header class="app-header">
+        <div class="header-container">
+            <div class="brand">
+                <div class="brand-logo">
+                    <i class="fa-solid fa-list-check"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>Action Item Tracker</h1>
+                    <span class="sub-title">Google Forms & Sheets System</span>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="openPeopleModal()">
+                    <i class="fa-solid fa-user-group"></i> Team Directory
+                </button>
+                <button class="btn btn-secondary" onclick="openAppsScriptModal()">
+                    <i class="fa-solid fa-code"></i> Apps Script Code
+                </button>
+                <button class="btn btn-primary" onclick="openNewActionModal()">
+                    <i class="fa-solid fa-plus"></i> New Action Item
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="app-container">
+        <!-- Dashboard Section -->
+        <section class="dashboard-section">
+            <div class="section-title">
+                <h2><i class="fa-solid fa-chart-pie"></i> Management Dashboard</h2>
+                <span class="badge badge-info"><i class="fa-solid fa-clock-rotate-left"></i> Real-time Monitoring</span>
+            </div>
+
+            <!-- Top Row: Metric Summary Cards -->
+            <div class="metrics-grid">
+                <div class="metric-card metric-total">
+                    <div class="metric-icon"><i class="fa-solid fa-layer-group"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-label">Total Actions</span>
+                        <h3 id="statTotal">0</h3>
+                    </div>
+                </div>
+
+                <div class="metric-card metric-completed">
+                    <div class="metric-icon"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-label">Completed</span>
+                        <h3 id="statCompleted">0</h3>
+                    </div>
+                </div>
+
+                <div class="metric-card metric-inprogress">
+                    <div class="metric-icon"><i class="fa-solid fa-spinner"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-label">In Progress</span>
+                        <h3 id="statInProgress">0</h3>
+                    </div>
+                </div>
+
+                <div class="metric-card metric-notstarted">
+                    <div class="metric-icon"><i class="fa-solid fa-circle-pause"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-label">Not Started</span>
+                        <h3 id="statNotStarted">0</h3>
+                    </div>
+                </div>
+
+                <div class="metric-card metric-blocked">
+                    <div class="metric-icon"><i class="fa-solid fa-ban"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-label">Blocked</span>
+                        <h3 id="statBlocked">0</h3>
+                    </div>
+                </div>
+
+                <div class="metric-card metric-overdue">
+                    <div class="metric-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-label">Overdue</span>
+                        <h3 id="statOverdue">0</h3>
+                    </div>
+                </div>
+
+                <div class="metric-card metric-duesoon">
+                    <div class="metric-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+                    <div class="metric-info">
+                        <span class="metric-label">Due Soon</span>
+                        <h3 id="statDueSoon">0</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Charts Grid -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3><i class="fa-solid fa-chart-column"></i> Actions by Status</h3>
+                    <div class="chart-container">
+                        <canvas id="chartStatus"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <h3><i class="fa-solid fa-chart-bar"></i> Actions by Priority</h3>
+                    <div class="chart-container">
+                        <canvas id="chartPriority"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <h3><i class="fa-solid fa-users"></i> Actions by Team</h3>
+                    <div class="chart-container">
+                        <canvas id="chartTeam"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attention Required Panel -->
+            <div class="attention-panel">
+                <div class="attention-header">
+                    <h3><i class="fa-solid fa-bell-concierge"></i> Attention Required</h3>
+                    <span class="subtitle">Overdue, Blocked, or Due Within 3 Days</span>
+                </div>
+                <div class="attention-list" id="attentionList">
+                    <!-- Dynamic Alert Cards -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Master Action Tracker Table Section -->
+        <section class="tracker-section">
+            <div class="tracker-header">
+                <div class="section-title">
+                    <h2><i class="fa-solid fa-table-list"></i> Master Action Tracker</h2>
+                </div>
+
+                <!-- Filters & Search Toolbar -->
+                <div class="toolbar">
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="searchInput" placeholder="Search action, person, ID..." oninput="filterTable()">
+                    </div>
+
+                    <div class="filter-group">
+                        <select id="filterStatus" onchange="filterTable()">
+                            <option value="">All Statuses</option>
+                            <option value="Not Started">Not Started</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Blocked">Blocked</option>
+                            <option value="Completed">Completed</option>
+                            <option value="On Hold">On Hold</option>
+                        </select>
+
+                        <select id="filterPriority" onchange="filterTable()">
+                            <option value="">All Priorities</option>
+                            <option value="Critical">Critical</option>
+                            <option value="High">High</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Low">Low</option>
+                        </select>
+
+                        <select id="filterTeam" onchange="filterTable()">
+                            <option value="">All Teams</option>
+                            <option value="Administration">Administration</option>
+                            <option value="Finance">Finance</option>
+                            <option value="Programs">Programs</option>
+                            <option value="Operations">Operations</option>
+                            <option value="Communications">Communications</option>
+                            <option value="Monitoring & Evaluation">Monitoring & Evaluation</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Table Container -->
+            <div class="table-responsive">
+                <table class="action-table" id="actionTable">
+                    <thead>
+                        <tr>
+                            <th>Action ID</th>
+                            <th>Action Item & Deliverable</th>
+                            <th>Team</th>
+                            <th>Priority</th>
+                            <th>Responsible Person & Role</th>
+                            <th>Accountable</th>
+                            <th>Timeline</th>
+                            <th>Status</th>
+                            <th>% Done</th>
+                            <th>Health</th>
+                            <th>Days Left</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Dynamic Rows -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal: Organizational Members Directory (People Sheet Manager) -->
+    <div class="modal-overlay" id="peopleModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-users-gear"></i> Organizational Team Directory (People Sheet)</h3>
+                <button class="close-btn" onclick="closeModal('peopleModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="description">Add organizational members, roles, and email addresses here. Members added here automatically populate the dropdowns in the Action Item Tracker so you never have to type names or email addresses manually!</p>
+                
+                <!-- Add New Member Form -->
+                <form id="addPersonForm" onsubmit="handleAddPerson(event)" class="inline-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Full Name <span class="required">*</span></label>
+                            <input type="text" id="personName" placeholder="e.g. Arthur Pendelton" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Role / Title <span class="required">*</span></label>
+                            <input type="text" id="personRole" placeholder="e.g. Executive Director" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Email Address <span class="required">*</span></label>
+                            <input type="email" id="personEmail" placeholder="e.g. arthur@example.org" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Team / Department <span class="required">*</span></label>
+                            <select id="personTeam" required>
+                                <option value="Administration">Administration</option>
+                                <option value="Finance">Finance</option>
+                                <option value="Programs">Programs</option>
+                                <option value="Operations">Operations</option>
+                                <option value="Communications">Communications</option>
+                                <option value="Monitoring & Evaluation">Monitoring & Evaluation</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; margin-top:10px;">
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Add Team Member</button>
+                    </div>
+                </form>
+
+                <hr style="border:0; border-top:1px solid var(--border-color); margin:1.5rem 0;">
+
+                <h3>Active Members List</h3>
+                <div class="table-responsive" style="max-height: 250px;">
+                    <table class="action-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Role / Title</th>
+                                <th>Email</th>
+                                <th>Team</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="peopleTableBody">
+                            <!-- Dynamic People Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('peopleModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: New Action Item Form (Google Form 1 Simulator) -->
+    <div class="modal-overlay" id="newActionModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-file-pen"></i> New Action Item Form</h3>
+                <button class="close-btn" onclick="closeModal('newActionModal')">&times;</button>
+            </div>
+            <form id="newActionForm" onsubmit="handleNewActionSubmit(event)">
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Meeting / Event <span class="required">*</span></label>
+                            <input type="text" id="newMeeting" placeholder="e.g. Weekly Management Meeting" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Meeting Date <span class="required">*</span></label>
+                            <input type="date" id="newMeetingDate" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Action Item <span class="required">*</span></label>
+                        <textarea id="newActionItem" rows="2" placeholder="Describe the specific action starting with a verb..." required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Expected Deliverable <span class="required">*</span></label>
+                        <textarea id="newDeliverable" rows="2" placeholder="Expected final tangible output..." required></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Core Team <span class="required">*</span></label>
+                            <select id="newTeam" required>
+                                <option value="Administration">Administration</option>
+                                <option value="Finance">Finance</option>
+                                <option value="Programs">Programs</option>
+                                <option value="Operations">Operations</option>
+                                <option value="Communications">Communications</option>
+                                <option value="Monitoring & Evaluation">Monitoring & Evaluation</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Priority <span class="required">*</span></label>
+                            <select id="newPriority" required>
+                                <option value="Critical">Critical</option>
+                                <option value="High" selected>High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Responsible Person <span class="required">*</span> (Select Member)</label>
+                            <select id="newResponsible" required>
+                                <!-- Dynamic options loaded from People Directory -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Accountable Person <span class="required">*</span> (Select Member)</label>
+                            <select id="newAccountable" required>
+                                <!-- Dynamic options loaded from People Directory -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Start Date <span class="required">*</span></label>
+                            <input type="date" id="newStartDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Due Date <span class="required">*</span></label>
+                            <input type="date" id="newDueDate" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Link to Work (Optional)</label>
+                        <input type="url" id="newLink" placeholder="https://drive.google.com/...">
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('newActionModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit Action Item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Update Action Item Form (Google Form 2 Simulator) -->
+    <div class="modal-overlay" id="updateActionModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-pen-to-square"></i> Update Action Item</h3>
+                <button class="close-btn" onclick="closeModal('updateActionModal')">&times;</button>
+            </div>
+            <form id="updateActionForm" onsubmit="handleUpdateActionSubmit(event)">
+                <input type="hidden" id="updateTargetId">
+                <div class="modal-body">
+                    <div class="info-banner" id="updateItemInfo">
+                        <!-- Target ID Info -->
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Status <span class="required">*</span></label>
+                            <select id="updateStatus" onchange="toggleBlockerField()" required>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Blocked">Blocked</option>
+                                <option value="Completed">Completed</option>
+                                <option value="On Hold">On Hold</option>
+                                <option value="Cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>% Complete (0 - 100%)</label>
+                            <input type="number" id="updatePct" min="0" max="100" step="5">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Progress Update</label>
+                        <textarea id="updateProgress" rows="2" placeholder="Describe progress made since last update..."></textarea>
+                    </div>
+
+                    <div class="form-group" id="blockerContainer">
+                        <label class="text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Blocker Details</label>
+                        <textarea id="updateBlocker" rows="2" placeholder="Explain what is blocking progress and who needs to intervene..."></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>New Due Date (Optional Extension)</label>
+                            <input type="date" id="updateDueDate">
+                        </div>
+                        <div class="form-group">
+                            <label>Link to Updated Work</label>
+                            <input type="url" id="updateLink" placeholder="https://...">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('updateActionModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Apps Script Exporter -->
+    <div class="modal-overlay" id="appsScriptModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <h3><i class="fa-brands fa-google"></i> Google Apps Script Code Generator</h3>
+                <button class="close-btn" onclick="closeModal('appsScriptModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="description">Copy these ready-to-use Google Apps Script files into your Google Sheet to activate automated ID generation, email reminders, 3-day/7-day management escalation, and forms triggers.</p>
+
+                <div class="tab-buttons">
+                    <button class="tab-btn active" onclick="switchCodeTab('setupTab', event)">Setup.gs</button>
+                    <button class="tab-btn" onclick="switchCodeTab('codeTab', event)">Code.gs</button>
+                </div>
+
+                <div class="tab-content active" id="setupTab">
+                    <div class="code-box-header">
+                        <span>Setup.gs (Run buildTrackerSystem() once in Google Apps Script)</span>
+                        <button class="btn btn-sm btn-secondary" onclick="copyCode('setupCodeText')"><i class="fa-solid fa-copy"></i> Copy Setup.gs</button>
+                    </div>
+                    <pre class="code-block"><code id="setupCodeText">Loading Setup.gs...</code></pre>
+                </div>
+
+                <div class="tab-content" id="codeTab">
+                    <div class="code-box-header">
+                        <span>Code.gs (Main Triggers & Email Engine)</span>
+                        <button class="btn btn-sm btn-secondary" onclick="copyCode('codeCodeText')"><i class="fa-solid fa-copy"></i> Copy Code.gs</button>
+                    </div>
+                    <pre class="code-block"><code id="codeCodeText">Loading Code.gs...</code></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('appsScriptModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
