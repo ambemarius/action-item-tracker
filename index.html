@@ -27,6 +27,9 @@
             </div>
             
             <div class="header-actions">
+                <button class="btn btn-secondary" onclick="saveGoogleSheetsUrl()" title="Connect Live Google Sheet API">
+                    <i class="fa-solid fa-link"></i> Link Google Sheet
+                </button>
                 <button class="btn btn-secondary" onclick="openPeopleModal()">
                     <i class="fa-solid fa-user-group"></i> Team Directory
                 </button>
@@ -226,7 +229,6 @@
             <div class="modal-body">
                 <p class="description">Add organizational members, roles, and email addresses here. Members added here automatically populate the dropdowns in the Action Item Tracker so you never have to type names or email addresses manually!</p>
                 
-                <!-- Add New Member Form -->
                 <form id="addPersonForm" onsubmit="handleAddPerson(event)" class="inline-form">
                     <div class="form-row">
                         <div class="form-group">
@@ -341,16 +343,12 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Responsible Person <span class="required">*</span> (Select Member)</label>
-                            <select id="newResponsible" required>
-                                <!-- Dynamic options loaded from People Directory -->
-                            </select>
+                            <label>Responsible Person <span class="required">*</span></label>
+                            <select id="newResponsible" required></select>
                         </div>
                         <div class="form-group">
-                            <label>Accountable Person <span class="required">*</span> (Select Member)</label>
-                            <select id="newAccountable" required>
-                                <!-- Dynamic options loaded from People Directory -->
-                            </select>
+                            <label>Accountable Person <span class="required">*</span></label>
+                            <select id="newAccountable" required></select>
                         </div>
                     </div>
 
@@ -389,9 +387,7 @@
             <form id="updateActionForm" onsubmit="handleUpdateActionSubmit(event)">
                 <input type="hidden" id="updateTargetId">
                 <div class="modal-body">
-                    <div class="info-banner" id="updateItemInfo">
-                        <!-- Target ID Info -->
-                    </div>
+                    <div class="info-banner" id="updateItemInfo"></div>
 
                     <div class="form-row">
                         <div class="form-group">

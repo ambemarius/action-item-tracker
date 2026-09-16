@@ -1,9 +1,13 @@
 /**
  * ACTION ITEM TRACKER - FRONTEND CONTROLLER (app.js)
- * Interactive UI Engine, Data Handler & Organizational Directory Manager
+ * Interactive UI Engine, Data Handler & Live Google Sheets Sync
  */
 
-// Initial Organizational People Store
+// Google Apps Script Web App Endpoint Configuration
+// Replace with your published Google Apps Script Web App URL to sync live with Google Sheets!
+let GOOGLE_SHEETS_WEB_APP_URL = localStorage.getItem('google_sheet_webapp_url') || "";
+
+// Initial Fallback Organizational People Store
 const defaultPeople = [
     { name: "Arthur Pendelton", role: "Executive Director", email: "arthur@example.org", team: "Administration" },
     { name: "Martial Kouam", role: "Operations Director", email: "martial@example.org", team: "Administration" },
@@ -14,11 +18,11 @@ const defaultPeople = [
     { name: "Paul Mbida", role: "M&E Lead Evaluator", email: "paul@example.org", team: "Monitoring & Evaluation" }
 ];
 
-// Initial Sample Actions
+// Initial Fallback Sample Actions
 const defaultActions = [
     {
         id: "ACT-2026-001",
-        createdDate: "2026-09-15 09:30:00",
+        createdDate: "2026-09-15",
         createdBy: "arthur@example.org",
         meeting: "Weekly Management Meeting",
         meetingDate: "2026-09-15",
@@ -41,11 +45,11 @@ const defaultActions = [
         link: "https://drive.google.com",
         latestUpdate: "Draft report compiled, pending review.",
         blocker: "",
-        lastUpdated: "2026-09-16 10:00:00"
+        lastUpdated: "2026-09-16"
     },
     {
         id: "ACT-2026-002",
-        createdDate: "2026-09-14 14:00:00",
+        createdDate: "2026-09-14",
         createdBy: "martial@example.org",
         meeting: "Operations Sync",
         meetingDate: "2026-09-14",
@@ -60,7 +64,7 @@ const defaultActions = [
         accEmail: "martial@example.org",
         supporting: "Tech Vendor",
         startDate: "2026-09-10",
-        dueDate: "2026-09-15", // Overdue!
+        dueDate: "2026-09-15",
         status: "In Progress",
         pctComplete: 80,
         health: "Overdue",
@@ -68,34 +72,7 @@ const defaultActions = [
         link: "",
         latestUpdate: "Fuel tank delivered, wiring delayed.",
         blocker: "",
-        lastUpdated: "2026-09-15 16:30:00"
-    },
-    {
-        id: "ACT-2026-003",
-        createdDate: "2026-09-16 08:45:00",
-        createdBy: "claire@example.org",
-        meeting: "Programs Committee",
-        meetingDate: "2026-09-16",
-        actionItem: "Finalize field survey questionnaires for North Region.",
-        deliverable: "Printed and digital survey forms distributed.",
-        team: "Programs",
-        priority: "High",
-        responsible: "David Nkomo",
-        respRole: "Senior Programs Officer",
-        respEmail: "david@example.org",
-        accountable: "Claire Vance",
-        accEmail: "claire@example.org",
-        supporting: "M&E Officers",
-        startDate: "2026-09-16",
-        dueDate: "2026-09-18",
-        status: "Blocked",
-        pctComplete: 20,
-        health: "Blocked",
-        daysRemaining: 2,
-        link: "",
-        latestUpdate: "Awaiting ethical clearance approval from Ministry.",
-        blocker: "Official stamp pending at Ministry office.",
-        lastUpdated: "2026-09-16 11:00:00"
+        lastUpdated: "2026-09-15"
     }
 ];
 
@@ -112,7 +89,49 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTable();
     initDates();
     loadAppsScriptCode();
+
+    if (GOOGLE_SHEETS_WEB_APP_URL) {
+        fetchFromGoogleSheets();
+    }
 });
+
+// Fetch Live Data from Google Sheets API
+async function fetchFromGoogleSheets() {
+    if (!GOOGLE_SHEETS_WEB_APP_URL) return;
+    try {
+        const res = await fetch(GOOGLE_SHEETS_WEB_APP_URL);
+        const data = await res.json();
+        if (data && data.status === "success") {
+            if (data.actions && data.actions.length > 0) {
+                actionsStore = data.actions;
+                saveStore();
+            }
+            if (data.people && data.people.length > 0) {
+                peopleStore = data.people;
+                savePeopleStore();
+            }
+            recalculateAllHealth();
+            populatePeopleDropdowns();
+            renderDashboard();
+            renderTable();
+            console.log("✅ Successfully synced live data from Google Sheets!");
+        }
+    } catch (e) {
+        console.warn("Could not sync from Google Sheets API:", e);
+    }
+}
+
+function saveGoogleSheetsUrl() {
+    const url = prompt("Paste your Google Apps Script Web App URL (Deploy > New deployment > Web App):", GOOGLE_SHEETS_WEB_APP_URL);
+    if (url !== null) {
+        GOOGLE_SHEETS_WEB_APP_URL = url.trim();
+        localStorage.setItem('google_sheet_webapp_url', GOOGLE_SHEETS_WEB_APP_URL);
+        if (GOOGLE_SHEETS_WEB_APP_URL) {
+            fetchFromGoogleSheets();
+            alert("🔗 Saved Google Sheets API URL! Syncing live data...");
+        }
+    }
+}
 
 // Load / Save Local Storage
 function loadStore() {
@@ -530,7 +549,7 @@ function generateNextId() {
     return `${prefix}${String(max + 1).padStart(3, '0')}`;
 }
 
-function handleNewActionSubmit(e) {
+async function handleNewActionSubmit(e) {
     e.preventDefault();
     const newId = generateNextId();
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
@@ -577,6 +596,38 @@ function handleNewActionSubmit(e) {
     closeModal('newActionModal');
     renderDashboard();
     renderTable();
+
+    // Post to Google Sheets if API URL is set
+    if (GOOGLE_SHEETS_WEB_APP_URL) {
+        try {
+            await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    actionType: "create",
+                    values: [
+                        "web_user@example.org",
+                        newItem.meeting,
+                        newItem.meetingDate,
+                        newItem.actionItem,
+                        newItem.deliverable,
+                        newItem.team,
+                        newItem.priority,
+                        newItem.responsible,
+                        newItem.accountable,
+                        "",
+                        newItem.startDate,
+                        newItem.dueDate,
+                        newItem.link,
+                        ""
+                    ]
+                })
+            });
+            console.log("Posted new action to Google Sheet API");
+        } catch (e) { console.warn("Failed to post to Google Sheets API:", e); }
+    }
+
     alert(`✅ Action Item Created! Assigned ID: ${newId}`);
 }
 
@@ -606,7 +657,7 @@ function toggleBlockerField() {
     blockerBox.style.display = (status === 'Blocked') ? 'flex' : 'none';
 }
 
-function handleUpdateActionSubmit(e) {
+async function handleUpdateActionSubmit(e) {
     e.preventDefault();
     const id = document.getElementById('updateTargetId').value;
     const item = actionsStore.find(a => a.id === id);
@@ -636,6 +687,32 @@ function handleUpdateActionSubmit(e) {
     closeModal('updateActionModal');
     renderDashboard();
     renderTable();
+
+    // Post Update to Google Sheets if API URL is set
+    if (GOOGLE_SHEETS_WEB_APP_URL) {
+        try {
+            await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    actionType: "update",
+                    values: [
+                        "web_user@example.org",
+                        item.id,
+                        item.status,
+                        item.pctComplete,
+                        item.latestUpdate,
+                        item.blocker,
+                        item.dueDate,
+                        item.link
+                    ]
+                })
+            });
+            console.log("Posted update to Google Sheet API");
+        } catch (e) { console.warn("Failed to post update to Google Sheets API:", e); }
+    }
+
     alert(`✅ Action Item ${id} Updated Successfully!`);
 }
 
