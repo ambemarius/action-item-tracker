@@ -141,7 +141,7 @@ function initDates() {
     const todayStr = new Date().toISOString().split('T')[0];
     document.getElementById('newMeetingDate').value = todayStr;
     document.getElementById('newStartDate').value = todayStr;
-    
+
     const due7 = new Date();
     due7.setDate(due7.getDate() + 7);
     document.getElementById('newDueDate').value = due7.toISOString().split('T')[0];
@@ -152,7 +152,7 @@ function populatePeopleDropdowns() {
     const accSelect = document.getElementById('newAccountable');
     if (!respSelect || !accSelect) return;
 
-    const optionsHtml = peopleStore.map(p => 
+    const optionsHtml = peopleStore.map(p =>
         `<option value="${p.name}">${p.name} — ${p.role} (${p.email})</option>`
     ).join('');
 
@@ -280,7 +280,7 @@ function renderDashboard() {
 
 function renderAttentionList() {
     const attentionContainer = document.getElementById('attentionList');
-    const urgentItems = actionsStore.filter(a => 
+    const urgentItems = actionsStore.filter(a =>
         a.health === 'Overdue' || a.health === 'Blocked' || a.health === 'Due Soon'
     );
 
@@ -451,10 +451,10 @@ function renderTable() {
 
     const filtered = actionsStore.filter(item => {
         const matchSearch = item.id.toLowerCase().includes(search) ||
-                            item.actionItem.toLowerCase().includes(search) ||
-                            item.responsible.toLowerCase().includes(search) ||
-                            item.deliverable.toLowerCase().includes(search);
-        
+            item.actionItem.toLowerCase().includes(search) ||
+            item.responsible.toLowerCase().includes(search) ||
+            item.deliverable.toLowerCase().includes(search);
+
         const matchStatus = !filterStatus || item.status === filterStatus;
         const matchPriority = !filterPriority || item.priority === filterPriority;
         const matchTeam = !filterTeam || item.team === filterTeam;
@@ -705,7 +705,7 @@ function badgeClass(str) {
 }
 
 function getHealthColor(health) {
-    switch(health) {
+    switch (health) {
         case 'Completed': return '#10B981';
         case 'Blocked': return '#EF4444';
         case 'Overdue': return '#DC2626';
@@ -730,7 +730,7 @@ function escapeHtml(str) {
 function switchCodeTab(tabId, e) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
-    
+
     e.target.classList.add('active');
     document.getElementById(tabId).classList.add('active');
 }
