@@ -1,13 +1,13 @@
 /**
  * ACTION ITEM TRACKER - PERSONALIZED EMAIL DIGEST AUTOMATION
- * Specification Version: 1.2
+ * Specification Version: 1.3 (Strict Personal Uncompleted Filtering & UI Fix)
  * 
- * Features:
- * - Filters action items by Person Name or Email Address.
- * - Excludes Completed and Cancelled tasks (sends ONLY active/outstanding tasks).
- * - Generates a rich, responsive HTML Email Dashboard for each team member.
- * - Function sendTestEmailDigest() sends test report for Ambe Marius (ambengwa48@gmail.com).
- * - Function sendPersonalizedEmailDigests() runs for all team members in the People sheet.
+ * Rules:
+ * 1. STRICT MATCH: Includes ONLY tasks where the person's Name or Email matches 
+ *    Responsible Person (Col J), Responsible Email (Col K), Accountable Person (Col L), 
+ *    or Accountable Email (Col M).
+ * 2. EXCLUDE COMPLETED: Skips ALL Completed or Cancelled tasks (100% completed items excluded).
+ * 3. NO getUi() ERRORS: Uses clean Logger outputs for error-free standalone execution.
  */
 
 /**
@@ -21,11 +21,9 @@ function sendTestEmailDigest() {
   const result = generateAndSendDigestForPerson(testPersonName, testEmail, true);
   
   if (result.success) {
-    Logger.log("✅ Test email digest successfully sent to " + testEmail);
-    SpreadsheetApp.getUi().alert("✅ Test Email Digest (Uncompleted Tasks Only) sent successfully to " + testEmail + "!");
+    Logger.log("✅ Test email digest successfully sent to " + testEmail + " (Total uncompleted tasks sent: " + result.taskCount + ")");
   } else {
     Logger.log("❌ Failed to send test email digest: " + result.error);
-    SpreadsheetApp.getUi().alert("❌ Error sending test email: " + result.error);
   }
 }
 
@@ -49,26 +47,27 @@ function sendPersonalizedEmailDigests() {
     if (!personName || !email || active === false) continue;
 
     const res = generateAndSendDigestForPerson(personName, email, false);
-    if (res.success) sentCount++;
+    if (res.success && res.taskCount > 0) sentCount++;
   }
 
   Logger.log("✅ Sent personalized email digests to " + sentCount + " team members.");
 }
 
 /**
- * Helper: Generates HTML Digest for a person's UNCOMPLETED tasks & Sends via Gmail
+ * Helper: Generates HTML Digest for a person's UNCOMPLETED tasks ONLY & Sends via Gmail
  */
 function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const trackerSheet = ss.getSheetByName("Action Tracker");
     if (!trackerSheet || trackerSheet.getLastRow() <= 1) {
-      return { success: false, error: "No action items found in sheet." };
+      return { success: false, taskCount: 0, error: "No action items found in sheet." };
     }
 
     const data = trackerSheet.getDataRange().getValues();
     const userTasks = [];
 
+    // Clean search terms
     const nameSearch = (personName || "").toString().trim().toLowerCase();
     const emailSearch = (recipientEmail || "").toString().trim().toLowerCase();
 
@@ -81,26 +80,31 @@ function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
       const accName = (row[11] || "").toString().trim().toLowerCase();
       const accEmail = (row[12] || "").toString().trim().toLowerCase();
       const status = (row[16] || "").toString().trim();
+      const pctVal = parseFloat(row[17] || 0);
 
-      // STRICT EXCLUSION: Skip Completed or Cancelled tasks!
-      if (status === "Completed" || status === "Cancelled") {
-        continue;
+      // 1. RULE: STRICT EXCLUSION OF COMPLETED / CANCELLED TASKS!
+      if (status === "Completed" || status === "Cancelled" || pctVal >= 1.0) {
+        continue; // Exclude completed items!
       }
 
-      // Filter by Name or Email match
+      // 2. RULE: STRICT MATCH BY NAME OR EMAIL
       let isMatch = false;
 
+      // Check Name match (e.g. "Marius", "Ambe Marius", "Arthur", etc.)
       if (nameSearch && (respName.includes(nameSearch) || accName.includes(nameSearch) || nameSearch.includes(respName))) {
         isMatch = true;
       }
+
+      // Check Email match (e.g. "ambengwa48@gmail.com", "marius@example.org")
       if (emailSearch && (respEmail.includes(emailSearch) || accEmail.includes(emailSearch))) {
         isMatch = true;
       }
-      if (respName === "all" || respName === "all teams") {
-        isMatch = true;
-      }
-      if (isTest && (respName.includes("marius") || respName.includes("arthur") || i <= 8)) {
-        isMatch = true;
+
+      // If test mode for Marius/ambengwa48@gmail.com, also match "Marius"
+      if (isTest && (emailSearch.includes("ambengwa48") || nameSearch.includes("marius"))) {
+        if (respName.includes("marius") || accName.includes("marius") || respEmail.includes("marius")) {
+          isMatch = true;
+        }
       }
 
       if (isMatch) {
@@ -113,9 +117,9 @@ function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
           responsible: row[9],
           accountable: row[11],
           dueDate: formatDateStr(row[15]),
-          status: row[16],
-          pctComplete: Math.round((row[17] || 0) * 100),
-          health: row[18],
+          status: row[16] || "Not Started",
+          pctComplete: Math.round(pctVal * 100),
+          health: row[18] || "On Track",
           daysRemaining: row[19],
           link: row[20],
           update: row[21],
@@ -124,17 +128,17 @@ function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
       }
     }
 
-    // Individual Task Counts (Uncompleted)
+    // Individual Counts (Uncompleted Only)
     const totalOutstanding = userTasks.length;
     const inProgress = userTasks.filter(t => t.status === "In Progress").length;
     const overdue = userTasks.filter(t => t.health === "Overdue").length;
     const blocked = userTasks.filter(t => t.status === "Blocked").length;
     const notStarted = userTasks.filter(t => t.status === "Not Started" || t.status === "Pending").length;
 
-    // Do not send digest if person has 0 outstanding tasks (unless test mode)
+    // Skip sending email if person has 0 uncompleted tasks
     if (totalOutstanding === 0 && !isTest) {
-      Logger.log("Skipping email for " + personName + " — 0 outstanding tasks.");
-      return { success: true };
+      Logger.log("Skipping email for " + personName + " — 0 uncompleted tasks.");
+      return { success: true, taskCount: 0 };
     }
 
     const htmlBody = buildHtmlEmailBody(personName, userTasks, totalOutstanding, inProgress, overdue, blocked, notStarted);
@@ -148,9 +152,9 @@ function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
       name: "THRIVE Executive Command Center"
     });
 
-    return { success: true };
+    return { success: true, taskCount: totalOutstanding };
   } catch (err) {
-    return { success: false, error: err.toString() };
+    return { success: false, taskCount: 0, error: err.toString() };
   }
 }
 
@@ -203,7 +207,7 @@ function buildHtmlEmailBody(name, tasks, total, inProgress, overdue, blocked, no
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #0B0F17; padding: 30px 10px;">
         <tr>
           <td align="center">
-            <table role="presentation" width="700" cellspacing="0" cellpadding="0" style="background-color: #151C2C; border-radius: 16px; overflow: hidden; border: 1px solid #1E293B; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <table role="presentation" width="720" cellspacing="0" cellpadding="0" style="background-color: #151C2C; border-radius: 16px; overflow: hidden; border: 1px solid #1E293B; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
               
               <!-- Header -->
               <tr>
@@ -213,7 +217,7 @@ function buildHtmlEmailBody(name, tasks, total, inProgress, overdue, blocked, no
                 </td>
               </tr>
 
-              <!-- KPI Metric Summary Cards -->
+              <!-- KPI Metric Summary Cards (Uncompleted Only) -->
               <tr>
                 <td style="padding: 25px 30px 15px 30px;">
                   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
