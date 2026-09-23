@@ -442,15 +442,34 @@ body {
     background: #0F172A;
     color: var(--text-secondary);
     font-weight: 600;
-    padding: 1rem;
+    padding: 0.75rem 0.8rem;
     border-bottom: 1px solid var(--border-color);
     white-space: nowrap;
 }
 
 .action-table td {
-    padding: 1rem;
+    padding: 0.75rem 0.8rem;
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
+}
+
+/* Make Actions column sticky on the right */
+.action-table th:last-child,
+.action-table td:last-child {
+    position: sticky;
+    right: 0;
+    background: var(--bg-card);
+    box-shadow: -4px 0 15px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+}
+
+.action-table th:last-child {
+    background: #0F172A;
+    z-index: 11;
+}
+
+.action-table tbody tr:hover td:last-child {
+    background: var(--bg-card-hover);
 }
 
 .action-table tbody tr {
@@ -473,7 +492,8 @@ body {
 }
 
 .item-cell {
-    max-width: 260px;
+    min-width: 320px;
+    max-width: 450px;
 }
 
 .item-title {
