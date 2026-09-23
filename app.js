@@ -537,8 +537,8 @@ function generateNextId() {
     const prefix = `ACT-${year}-`;
     let max = 0;
     actionsStore.forEach(a => {
-        if (a.id.startsWith(prefix)) {
-            const num = parseInt(a.id.replace(prefix, ''), 10);
+        if (a.id && String(a.id).startsWith(prefix)) {
+            const num = parseInt(String(a.id).replace(prefix, ''), 10);
             if (num > max) max = num;
         }
     });
