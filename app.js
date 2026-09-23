@@ -3,7 +3,7 @@
  * Interactive UI Engine, Data Handler & Real THRIVE Action Items
  */
 
-let GOOGLE_SHEETS_WEB_APP_URL = localStorage.getItem('google_sheet_webapp_url') || "";
+let GOOGLE_SHEETS_WEB_APP_URL = localStorage.getItem('google_sheet_webapp_url') || "https://script.google.com/macros/s/AKfycbza2H-bbGcbGmUAycjoET_vQutfiKP7nPBjKUTWzY7FDL82wqSI9StbK8f0wiJFiGQbTQ/exec";
 
 // Organizational Directory (THRIVE Team Members)
 const defaultPeople = [
