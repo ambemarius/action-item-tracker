@@ -61,7 +61,7 @@ function setupPeopleSheet(sheet) {
     ["Adrien", "Research & Documentation Lead", "adrien@example.org", "Public Health", true],
     ["Sanjo", "Graphic Designer & Media Specialist", "sanjo@example.org", "Design, Media & Web", true],
     ["Claire", "Finance Officer", "claire@example.org", "Admin and Finance", true],
-    ["All", "All Team Members", "team@example.org", "All Teams", true]
+    ["All Team Members", "All Organization Members", "team@example.org", "All Teams", true]
   ];
 
   sheet.getRange(2, 1, defaultPeople.length, 5).setValues(defaultPeople);
@@ -207,7 +207,7 @@ function seedThriveData() {
     [10, "Prepare and sign annual operational plans or the THRIVE strategic 2026-2029 plan with each DMO tailored to district realities", "Public health", "Critical", "Arthur", "", "", "", "Not Started", "2026-09-30", ""],
     [11, "Conduct a thorough literature review on identified innovative spirometry and peak flow meters that may require research to validate their products and email them for a possible collaboration", "Public health", "Medium", "Arthur", "", "", "", "On Hold", "2026-09-30", ""],
     [12, "Create and propose the THRIVE Website for review to the core team and volunteers", "Design, media and web", "Critical", "Marius", "", "", "", "Not Started", "", ""],
-    [13, "Revised the organisation website proposal and give feedback for improvement", "All teams", "Critical", "All", "", "", "", "Not Started", "", ""],
+    [13, "Revised the organisation website proposal and give feedback for improvement", "All teams", "Critical", "All Team Members", "Arthur", "", "", "Not Started", "", ""],
     [14, "Select the company where the organisation domain name will be bought and who will host the organisation website", "Design, media and web", "Critical", "Marius", "", "", "", "In Progress", "", ""],
     [15, "Use the domain name of the website and the organisation papers to apply for a free Google Workspace for non-profits", "Public health", "Critical", "Arthur", "", "", "https://strategy.amref.org/our-strategy/", "Not Started", "2026-09-15", ""],
     [16, "Share resources on logical models and operational plan development", "Public health", "Critical", "Arthur", "", "", "", "Completed", "2026-09-01", ""],

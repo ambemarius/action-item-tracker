@@ -13,7 +13,7 @@ const defaultPeople = [
     { name: "Adrien", role: "Research & Documentation Lead", email: "adrien@example.org", team: "Public health" },
     { name: "Sanjo", role: "Graphic Designer & Media Specialist", email: "sanjo@example.org", team: "Design, media and web" },
     { name: "Claire", role: "Finance Officer", email: "claire@example.org", team: "Admin and Finance" },
-    { name: "All", role: "All Team Members", email: "team@example.org", team: "All teams" }
+    { name: "All Team Members", role: "All Organization Members", email: "team@example.org", team: "All teams" }
 ];
 
 // All 36 Real THRIVE Action Items
@@ -30,7 +30,7 @@ const defaultActions = [
     { id: "ACT-2026-010", actionItem: "Prepare and sign annual operational plans or the THRIVE strategic 2026-2029 plan with each DMO", deliverable: "Signed Annual Operational Plans (2026-2029)", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-30", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 14, link: "", latestUpdate: "Pending DMO review", blocker: "" },
     { id: "ACT-2026-011", actionItem: "Conduct a thorough literature review on identified innovative spirometry and peak flow meters", deliverable: "Spirometry Review Report & Outreach Emails", team: "Public health", priority: "Medium", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-30", status: "On Hold", pctComplete: 20, health: "On Hold", daysRemaining: 14, link: "", latestUpdate: "On hold for tech specs", blocker: "" },
     { id: "ACT-2026-012", actionItem: "Create and propose the THRIVE Website for review to the core team and volunteers", deliverable: "Working THRIVE Website Prototype", team: "Design, media and web", priority: "Critical", responsible: "Marius", respRole: "Web & Data Lead", respEmail: "marius@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-25", status: "In Progress", pctComplete: 70, health: "On Track", daysRemaining: 9, link: "", latestUpdate: "Frontend layout completed", blocker: "" },
-    { id: "ACT-2026-013", actionItem: "Revised the organisation website proposal and give feedback for improvement", deliverable: "Website Review Feedback Document", team: "All teams", priority: "Critical", responsible: "All", respRole: "All Members", respEmail: "team@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-28", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 12, link: "", latestUpdate: "", blocker: "" },
+    { id: "ACT-2026-013", actionItem: "Revised the organisation website proposal and give feedback for improvement", deliverable: "Website Review Feedback Document", team: "All teams", priority: "Critical", responsible: "All Team Members", respRole: "All Organization Members", respEmail: "team@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-28", status: "Not Started", pctComplete: 0, health: "On Track", daysRemaining: 12, link: "", latestUpdate: "", blocker: "" },
     { id: "ACT-2026-014", actionItem: "Select the company where the organisation domain name will be bought and who will host the organisation website", deliverable: "Domain & Hosting Provider Selection", team: "Design, media and web", priority: "Critical", responsible: "Marius", respRole: "Web & Data Lead", respEmail: "marius@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-18", status: "In Progress", pctComplete: 60, health: "On Track", daysRemaining: 2, link: "", latestUpdate: "Comparing Cloudflare vs Namecheap", blocker: "" },
     { id: "ACT-2026-015", actionItem: "Use the domain name of the website and the organisation papers to apply for a free Google Workspace for non-profits", deliverable: "Approved Google Workspace Non-Profit Account", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-15", status: "Not Started", pctComplete: 0, health: "Overdue", daysRemaining: -1, link: "https://strategy.amref.org/our-strategy/", latestUpdate: "Pending domain setup", blocker: "" },
     { id: "ACT-2026-016", actionItem: "Share resources on logical models and operational plan development", deliverable: "Logical Models & Operational Plan Resource Pack", team: "Public health", priority: "Critical", responsible: "Arthur", respRole: "Executive Director", respEmail: "arthur@example.org", accountable: "Arthur", startDate: "2026-09-01", dueDate: "2026-09-01", status: "Completed", pctComplete: 100, health: "Completed", daysRemaining: "—", link: "", latestUpdate: "Resources shared in WhatsApp group", blocker: "" },
@@ -152,12 +152,19 @@ function populatePeopleDropdowns() {
     const accSelect = document.getElementById('newAccountable');
     if (!respSelect || !accSelect) return;
 
-    const optionsHtml = peopleStore.map(p =>
-        `<option value="${p.name}">${p.name} — ${p.role} (${p.email})</option>`
+    const individuals = peopleStore.filter(p => p.name !== 'All' && p.name !== 'All Team Members');
+
+    const respOptions = [
+        `<option value="All Team Members">👥 All Team Members — Everyone in Organization (Auto Email to All)</option>`,
+        ...individuals.map(p => `<option value="${p.name}">👤 ${p.name} — ${p.role} (${p.email})</option>`)
+    ].join('');
+
+    const accOptions = individuals.map(p =>
+        `<option value="${p.name}">👤 ${p.name} — ${p.role} (${p.email})</option>`
     ).join('');
 
-    respSelect.innerHTML = optionsHtml;
-    accSelect.innerHTML = optionsHtml;
+    respSelect.innerHTML = respOptions;
+    accSelect.innerHTML = accOptions;
 }
 
 function renderPeopleTable() {
@@ -297,7 +304,8 @@ function renderAttentionList() {
             </div>
             <div class="attention-title">${escapeHtml(item.actionItem)}</div>
             <div class="attention-meta">
-                <span><i class="fa-regular fa-user"></i> ${item.responsible}</span>
+                <span><i class="fa-solid fa-user-check"></i> Resp: ${item.responsible === 'All' || item.responsible === 'All Team Members' ? '<strong style="color:#60A5FA;">👥 All Team Members</strong>' : escapeHtml(item.responsible)}</span>
+                <span><i class="fa-solid fa-shield-halved"></i> Acc: ${escapeHtml(item.accountable || 'Arthur')}</span>
                 <span><i class="fa-regular fa-calendar-xmark"></i> Due: ${item.dueDate}</span>
             </div>
         </div>
@@ -468,7 +476,28 @@ function renderTable() {
     }
 
     tbody.innerHTML = filtered.map(item => {
+        const isAll = item.responsible === 'All' || item.responsible === 'All Team Members' || item.responsible === 'Everyone';
         const respPersonObj = peopleStore.find(p => p.name === item.responsible) || { role: item.respRole || "Member", email: item.respEmail };
+        const accPersonObj = peopleStore.find(p => p.name === item.accountable) || { role: "Executive Lead", email: item.accEmail || `${(item.accountable || 'lead').toLowerCase()}@example.org` };
+
+        const respDisplay = isAll ? `
+            <span class="badge" style="background:rgba(59, 130, 246, 0.18); color:#93C5FD; border:1px solid rgba(59, 130, 246, 0.35); font-weight:600;">
+                <i class="fa-solid fa-users"></i> All Team Members
+            </span><br>
+            <small style="color:#A5B4FC">All Organization Members</small><br>
+            <small style="color:#64748B; font-size: 0.72rem;"><i class="fa-solid fa-envelope"></i> Automated Email to Everyone</small>
+        ` : `
+            <strong>${escapeHtml(item.responsible)}</strong><br>
+            <small style="color:#A5B4FC">${escapeHtml(respPersonObj.role)}</small><br>
+            <small style="color:#64748B">${escapeHtml(respPersonObj.email)}</small>
+        `;
+
+        const accDisplay = `
+            <strong>${escapeHtml(item.accountable || 'Arthur')}</strong><br>
+            <small style="color:#CBD5E1;">${escapeHtml(accPersonObj.role || 'Executive Lead')}</small><br>
+            <small style="color:#64748B">${escapeHtml(accPersonObj.email || '')}</small>
+        `;
+
         return `
         <tr>
             <td><span class="id-badge">${item.id}</span></td>
@@ -478,12 +507,8 @@ function renderTable() {
             </td>
             <td><span class="badge" style="background:rgba(255,255,255,0.06); color:#CBD5E1;">${item.team}</span></td>
             <td><span class="prio-badge prio-${item.priority.toLowerCase()}">${item.priority}</span></td>
-            <td>
-                <strong>${escapeHtml(item.responsible)}</strong><br>
-                <small style="color:#A5B4FC">${escapeHtml(respPersonObj.role)}</small><br>
-                <small style="color:#64748B">${escapeHtml(respPersonObj.email)}</small>
-            </td>
-            <td>${escapeHtml(item.accountable)}</td>
+            <td>${respDisplay}</td>
+            <td>${accDisplay}</td>
             <td>
                 <small style="color:#94A3B8">Due: ${item.dueDate || 'N/A'}</small>
             </td>
@@ -528,8 +553,23 @@ async function handleNewActionSubmit(e) {
     const respName = document.getElementById('newResponsible').value;
     const accName = document.getElementById('newAccountable').value;
 
-    const respPersonObj = peopleStore.find(p => p.name === respName) || { role: "Member", email: `${respName.toLowerCase()}@example.org` };
-    const accPersonObj = peopleStore.find(p => p.name === accName) || { role: "Member", email: `${accName.toLowerCase()}@example.org` };
+    let respRole = "Member";
+    let respEmail = "";
+
+    const isAll = (respName === "All Team Members" || respName === "All" || respName === "Everyone");
+    if (isAll) {
+        respRole = "All Organization Members";
+        const allEmails = peopleStore
+            .filter(p => p.name !== 'All' && p.name !== 'All Team Members' && p.email)
+            .map(p => p.email);
+        respEmail = allEmails.length > 0 ? allEmails.join(', ') : "all-team@organization.org";
+    } else {
+        const respPersonObj = peopleStore.find(p => p.name === respName) || { role: "Member", email: `${respName.toLowerCase()}@example.org` };
+        respRole = respPersonObj.role;
+        respEmail = respPersonObj.email;
+    }
+
+    const accPersonObj = peopleStore.find(p => p.name === accName) || { role: "Executive Lead", email: `${accName.toLowerCase()}@example.org` };
 
     const newItem = {
         id: newId,
@@ -542,8 +582,8 @@ async function handleNewActionSubmit(e) {
         team: document.getElementById('newTeam').value,
         priority: document.getElementById('newPriority').value,
         responsible: respName,
-        respRole: respPersonObj.role,
-        respEmail: respPersonObj.email,
+        respRole: respRole,
+        respEmail: respEmail,
         accountable: accName,
         accEmail: accPersonObj.email,
         supporting: "",

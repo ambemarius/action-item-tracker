@@ -100,6 +100,13 @@ function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
         isMatch = true;
       }
 
+      // Check if task is assigned to "All", "All Team Members", or "Everyone" -> applies to ALL organization members!
+      const isTeamWide = (respName === "all" || respName === "all team members" || respName === "everyone" || 
+                          accName === "all" || accName === "all team members" || accName === "everyone");
+      if (isTeamWide) {
+        isMatch = true;
+      }
+
       // If test mode for Marius/ambengwa48@gmail.com, also match "Marius"
       if (isTest && (emailSearch.includes("ambengwa48") || nameSearch.includes("marius"))) {
         if (respName.includes("marius") || accName.includes("marius") || respEmail.includes("marius")) {

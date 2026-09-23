@@ -140,12 +140,31 @@ function getSetting(key, defaultValue) {
 
 function getPersonEmail(personName) {
   if (!personName) return "";
+  const cleanName = personName.toString().trim().toLowerCase();
+  const isAll = cleanName === "all" || cleanName === "all team members" || cleanName === "everyone" || cleanName === "all teams";
+
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("People");
     if (!sheet) return "";
     const data = sheet.getDataRange().getValues();
+
+    if (isAll) {
+      const emails = [];
+      for (let i = 1; i < data.length; i++) {
+        const rowName = (data[i][0] || "").toString().trim().toLowerCase();
+        const rowEmail = (data[i][2] || data[i][1] || "").toString().trim();
+        const active = data[i][4];
+        if (!rowEmail || active === false) continue;
+        if (rowName === "all" || rowName === "all team members" || rowName === "everyone") continue;
+        if (!emails.includes(rowEmail)) {
+          emails.push(rowEmail);
+        }
+      }
+      return emails.join(", ");
+    }
+
     for (let i = 1; i < data.length; i++) {
-      if (data[i][0] && data[i][0].toString().trim().toLowerCase() === personName.toString().trim().toLowerCase()) {
+      if (data[i][0] && data[i][0].toString().trim().toLowerCase() === cleanName) {
         return data[i][2] || data[i][1] || "";
       }
     }
@@ -407,23 +426,26 @@ function sendDailyReminders() {
       if (lastSentClean.getTime() === today.getTime()) continue;
     }
 
+    const isTeamWide = (respPerson && (respPerson.toString().toLowerCase() === "all" || respPerson.toString().toLowerCase() === "all team members" || respPerson.toString().toLowerCase() === "everyone"));
+    const greetingName = isTeamWide ? "Team (All Organization Members)" : respPerson;
+
     if (startDate.getTime() === today.getTime() && status === "Not Started") {
       if (respEmail) {
-        const subject = `Action Item Starting Today — ${actionId}`;
-        const body = `Hello ${respPerson},\n\nThis is a reminder that the following action item is scheduled to start today.\n\nAction ID: ${actionId}\nAction: ${actionItem}\nExpected Deliverable: ${deliverable}\nPriority: ${priority}\nStart Date: ${formatDate(startDate)}\nDue Date: ${formatDate(dueDate)}\nCurrent Status: ${status}\n\nPlease begin the activity and update the action item when work starts.\n\n${orgName} Action Item Tracker`;
+        const subject = `Action Item Starting Today ${isTeamWide ? '(All Team Members) ' : ''}— ${actionId}`;
+        const body = `Hello ${greetingName},\n\nThis is a reminder that the following action item is scheduled to start today.\n\nAction ID: ${actionId}\nAction: ${actionItem}\nExpected Deliverable: ${deliverable}\nPriority: ${priority}\nResponsible: ${respPerson}\nAccountable: ${accPerson}\nStart Date: ${formatDate(startDate)}\nDue Date: ${formatDate(dueDate)}\nCurrent Status: ${status}\n\nPlease begin the activity and update the action item when work starts.\n\n${orgName} Action Item Tracker`;
         sendEmailAndLog(respEmail, subject, body, actionId, "Start Reminder", respPerson, sheet, rowIndex, "Start Reminder");
       }
     } else if (daysRemaining > 0 && daysRemaining <= dueSoonDays) {
       if (respEmail) {
         const urgency = daysRemaining === 1 ? "Due Tomorrow" : `Due in ${daysRemaining} Days`;
-        const subject = `Action Item ${urgency} — ${actionId}`;
-        const body = `Hello ${respPerson},\n\nThis is a reminder that your action item is ${urgency.toLowerCase()}.\n\nAction ID: ${actionId}\nAction: ${actionItem}\nExpected Deliverable: ${deliverable}\nPriority: ${priority}\nDue Date: ${formatDate(dueDate)}\nDays Remaining: ${daysRemaining}\nCurrent Status: ${status}\n\nPlease submit updates if there are changes.\n\n${orgName} Action Item Tracker`;
+        const subject = `Action Item ${urgency} ${isTeamWide ? '(All Team Members) ' : ''}— ${actionId}`;
+        const body = `Hello ${greetingName},\n\nThis is a reminder that your action item is ${urgency.toLowerCase()}.\n\nAction ID: ${actionId}\nAction: ${actionItem}\nExpected Deliverable: ${deliverable}\nPriority: ${priority}\nResponsible: ${respPerson}\nAccountable: ${accPerson}\nDue Date: ${formatDate(dueDate)}\nDays Remaining: ${daysRemaining}\nCurrent Status: ${status}\n\nPlease submit updates if there are changes.\n\n${orgName} Action Item Tracker`;
         sendEmailAndLog(respEmail, subject, body, actionId, "Due Soon", respPerson, sheet, rowIndex, "Due Soon");
       }
     } else if (daysRemaining === 0) {
       if (respEmail) {
-        const subject = `URGENT: Action Item Due Today — ${actionId}`;
-        const body = `Hello ${respPerson},\n\nYOUR ACTION ITEM IS DUE TODAY.\n\nAction ID: ${actionId}\nAction: ${actionItem}\nExpected Deliverable: ${deliverable}\nPriority: ${priority}\nDue Date: ${formatDate(dueDate)}\n\nPlease finalize and complete this item today.\n\n${orgName} Action Item Tracker`;
+        const subject = `URGENT: Action Item Due Today ${isTeamWide ? '(All Team Members) ' : ''}— ${actionId}`;
+        const body = `Hello ${greetingName},\n\nYOUR ACTION ITEM IS DUE TODAY.\n\nAction ID: ${actionId}\nAction: ${actionItem}\nExpected Deliverable: ${deliverable}\nPriority: ${priority}\nResponsible: ${respPerson}\nAccountable: ${accPerson}\nDue Date: ${formatDate(dueDate)}\n\nPlease finalize and complete this item today.\n\n${orgName} Action Item Tracker`;
         sendEmailAndLog(respEmail, subject, body, actionId, "Due Today", respPerson, sheet, rowIndex, "Due Today");
       }
     } else if (daysRemaining < 0) {
@@ -440,7 +462,7 @@ function sendDailyReminders() {
 
       const recipientStr = recipients.filter(Boolean).join(",");
       if (recipientStr) {
-        const subject = `OVERDUE ACTION ITEM (${daysOverdue} Days) — ${actionId}`;
+        const subject = `OVERDUE ACTION ITEM (${daysOverdue} Days) ${isTeamWide ? '(All Team Members) ' : ''}— ${actionId}`;
         const body = `ATTENTION REQUIRED\n\nThis action item is OVERDUE by ${daysOverdue} day(s).\n\nAction ID: ${actionId}\nAction: ${actionItem}\nResponsible Person: ${respPerson}\nAccountable Person: ${accPerson}\nDue Date: ${formatDate(dueDate)}\nDays Overdue: ${daysOverdue}\nCurrent Status: ${status}\nEscalation Stage: ${escalationStage}\n\nPlease update the status or resolve immediately.\n\n${orgName} Action Item Tracker`;
         sendEmailAndLog(recipientStr, subject, body, actionId, escalationStage, respPerson, sheet, rowIndex, escalationStage);
       }

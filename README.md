@@ -64,7 +64,9 @@ The system consists of two integrated components:
 | Feature | Specification Rule |
 |---|---|
 | **Action ID** | `ACT-YYYY-###` (Sequential per year) |
-| **Email Lookup** | Automatically retrieved from `People` sheet by name |
+| **Responsible & Accountable** | Every action item has a Responsible and Accountable person assigned. |
+| **All Team Members Option** | Selecting `All Team Members` / `Everyone` as Responsible automatically broadcasts reminders & daily digests to all active organization members. |
+| **Email Lookup** | Automatically retrieved from `People` sheet by name (or resolves to all team emails for "All Team Members") |
 | **Default Status** | `Not Started` with `0%` progress |
 | **Health Rules** | Completed, Blocked, Overdue (Due < Today), Due Soon (<= Today + 3d), Not Started, On Track |
 | **Days Remaining** | `Due Date - Today()` (Displays `—` for Completed/Cancelled) |
