@@ -438,6 +438,75 @@ body {
     font-size: 14px;
 }
 
+/* Keep the scrollbar and column headings close while browsing long lists. */
+.tracker-scroll-region {
+    max-height: 65vh;
+    max-height: 65dvh;
+    overflow: auto;
+    scrollbar-gutter: stable;
+    scrollbar-color: #64748B #0F172A;
+}
+
+.tracker-scroll-region:focus-visible {
+    outline: 2px solid var(--accent-indigo);
+    outline-offset: 3px;
+}
+
+.tracker-scroll-region .action-table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.tracker-scroll-region .action-table th {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+}
+
+.tracker-scroll-region .action-table th:last-child {
+    z-index: 13;
+}
+
+.table-scroll-hint {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin: 0 0 10px;
+}
+
+.item-status-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin: 8px 0;
+}
+
+.item-status-summary > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.summary-label {
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+@media (max-width: 600px) {
+    /* Leave room for the action and its badges on narrow screens. */
+    .tracker-scroll-region .action-table th:first-child,
+    .tracker-scroll-region .action-table td:first-child {
+        display: none;
+    }
+    .tracker-scroll-region .action-table th:last-child,
+    .tracker-scroll-region .action-table td:last-child {
+        position: static;
+        box-shadow: none;
+    }
+    .tracker-scroll-region .item-cell {
+        min-width: 240px;
+    }
+}
+
 .action-table th {
     background: #0F172A;
     color: var(--text-secondary);

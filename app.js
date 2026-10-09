@@ -503,6 +503,10 @@ function renderTable() {
             <td><span class="id-badge">${item.id}</span></td>
             <td class="item-cell">
                 <button type="button" class="item-title action-title-button" onclick="openUpdateModal('${item.id}')">${escapeHtml(item.actionItem)}</button>
+                <div class="item-status-summary">
+                    <span><span class="summary-label">Status</span> <span class="badge badge-${badgeClass(item.status)}">${escapeHtml(item.status)}</span></span>
+                    <span><span class="summary-label">Health</span> <span class="badge badge-${badgeClass(item.health)}">${escapeHtml(item.health)}</span></span>
+                </div>
                 <div class="item-sub">🎯 ${escapeHtml(item.deliverable)}</div>
             </td>
             <td><span class="badge" style="background:rgba(255,255,255,0.06); color:#CBD5E1;">${item.team}</span></td>
