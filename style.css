@@ -712,6 +712,13 @@ body {
     color: white;
 }
 
+.action-title-button { display: block; background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.action-title-button:hover { text-decoration: underline; }
+.action-title-button:focus-visible { outline: 2px solid var(--accent-indigo); outline-offset: 4px; }
+.reassignment-fields { display: flex; flex-direction: column; gap: 12px; min-width: 0; border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; }
+.reassignment-fields legend { padding: 0 6px; }
+.reassignment-fields small, #reassignMessage { color: var(--text-secondary); }
+
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 

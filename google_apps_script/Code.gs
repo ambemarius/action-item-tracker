@@ -100,7 +100,11 @@ function doPost(e) {
     const postData = JSON.parse(e.postData.contents);
     const actionType = postData.actionType; // "create" or "update"
 
-    if (actionType === "create") {
+    if (actionType === "reassign") {
+      reassignActionOwners(postData.actionId, postData.assignment);
+      return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } else if (actionType === "create") {
       onNewActionSubmit({ values: postData.values });
       return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Created new Action Item" }))
         .setMimeType(ContentService.MimeType.JSON);
@@ -121,6 +125,37 @@ function doPost(e) {
 // --------------------------------------------------------------------------
 // CORE APPS SCRIPT LOGIC
 // --------------------------------------------------------------------------
+
+// Reassignment deliberately writes only owner cells, never an entire row.
+function reassignActionOwners(actionId, assignment) {
+  if (!actionId || !assignment) throw new Error("Action ID and assignment are required.");
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Action Tracker");
+  const people = ss.getSheetByName("People").getDataRange().getValues().slice(1);
+  const rows = sheet.getDataRange().getValues();
+  const matches = [];
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).trim() === String(actionId).trim()) matches.push(i + 1);
+  }
+  if (matches.length !== 1) throw new Error("Action ID must identify exactly one existing action.");
+  const changes = [];
+  ['responsible', 'accountable'].forEach(key => {
+    if (!Object.prototype.hasOwnProperty.call(assignment, key)) return;
+    const name = typeof assignment[key] === 'string' ? assignment[key].trim() : '';
+    const allNames = ['all', 'all team members', 'everyone', 'all teams'];
+    const everyone = key === 'responsible' && allNames.includes(name.toLowerCase());
+    const person = people.find(p => String(p[0]).trim() === name && p[4] !== false);
+    if (!name || (!everyone && !person)) throw new Error("Select an active person from the Google Sheets People directory.");
+    const email = everyone
+      ? [...new Set(people.filter(p => p[4] !== false && p[2] && !allNames.includes(String(p[0]).trim().toLowerCase())).map(p => String(p[2]).trim()))].join(', ')
+      : String(person[2] || '').trim();
+    if (!email) throw new Error("The selected person needs an email in the People directory.");
+    changes.push({ column: key === 'responsible' ? 10 : 12, values: [[name, email]] });
+  });
+  if (!changes.length) throw new Error("No reassignment supplied.");
+  // Validate both owners before performing any writes. Preserve all other cells.
+  changes.forEach(change => sheet.getRange(matches[0], change.column, 1, 2).setValues(change.values));
+}
 
 function getSetting(key, defaultValue) {
   try {

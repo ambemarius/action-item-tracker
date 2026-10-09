@@ -390,6 +390,21 @@
                 <div class="modal-body">
                     <div class="info-banner" id="updateItemInfo"></div>
 
+                    <fieldset class="reassignment-fields">
+                        <legend>Reassign action</legend>
+                        <div class="form-group">
+                            <label for="reassignResponsible">Responsible Person</label>
+                            <select id="reassignResponsible"></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="reassignAccountable">Accountable Person</label>
+                            <select id="reassignAccountable"></select>
+                        </div>
+                        <button type="button" id="reassignButton" class="btn btn-secondary" onclick="reassignAction()">Save Reassignment</button>
+                        <small>Reassignment saves separately from progress updates.</small>
+                        <p id="reassignMessage" role="status" aria-live="polite"></p>
+                    </fieldset>
+
                     <div class="form-row">
                         <div class="form-group">
                             <label>Status <span class="required">*</span></label>

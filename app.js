@@ -502,7 +502,7 @@ function renderTable() {
         <tr>
             <td><span class="id-badge">${item.id}</span></td>
             <td class="item-cell">
-                <div class="item-title">${escapeHtml(item.actionItem)}</div>
+                <button type="button" class="item-title action-title-button" onclick="openUpdateModal('${item.id}')">${escapeHtml(item.actionItem)}</button>
                 <div class="item-sub">🎯 ${escapeHtml(item.deliverable)}</div>
             </td>
             <td><span class="badge" style="background:rgba(255,255,255,0.06); color:#CBD5E1;">${item.team}</span></td>
@@ -644,6 +644,9 @@ function openUpdateModal(id) {
     const item = actionsStore.find(a => a.id === id);
     if (!item) return;
 
+    populateReassignmentSelect('reassignResponsible', item.responsible, true);
+    populateReassignmentSelect('reassignAccountable', item.accountable, false);
+    document.getElementById('reassignMessage').textContent = '';
     document.getElementById('updateTargetId').value = item.id;
     document.getElementById('updateItemInfo').innerHTML = `
         <strong>${item.id}</strong> — ${escapeHtml(item.actionItem)}<br>
@@ -658,6 +661,86 @@ function openUpdateModal(id) {
 
     toggleBlockerField();
     openModal('updateActionModal');
+}
+
+function populateReassignmentSelect(id, current, allowEveryone) {
+    const select = document.getElementById(id);
+    select.replaceChildren();
+    const groups = ['all', 'all team members', 'everyone', 'all teams'];
+    const names = [...new Set([
+        ...(allowEveryone ? ['All Team Members'] : []),
+        ...peopleStore.filter(p => !groups.includes(p.name.toLowerCase())).map(p => p.name),
+        ...(current ? [current] : [])
+    ])];
+    names.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+    });
+    select.value = current || '';
+}
+
+async function reassignAction() {
+    const id = document.getElementById('updateTargetId').value;
+    const item = actionsStore.find(a => a.id === id);
+    const responsible = document.getElementById('reassignResponsible').value;
+    const accountable = document.getElementById('reassignAccountable').value;
+    const message = document.getElementById('reassignMessage');
+    const button = document.getElementById('reassignButton');
+    if (!item || !responsible || !accountable) {
+        message.textContent = 'Choose both a responsible and an accountable person.';
+        return;
+    }
+    const assignment = {};
+    if (responsible !== item.responsible) assignment.responsible = responsible;
+    if (accountable !== item.accountable) assignment.accountable = accountable;
+    if (!Object.keys(assignment).length) {
+        message.textContent = 'The selected people are already assigned.';
+        return;
+    }
+    button.disabled = true;
+    message.textContent = 'Saving reassignment…';
+    try {
+        if (GOOGLE_SHEETS_WEB_APP_URL) {
+            await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
+                method: 'POST', mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                body: JSON.stringify({ actionType: 'reassign', actionId: id, assignment })
+            });
+            // An opaque POST response is not proof that the sheet accepted the change.
+            const response = await fetch(GOOGLE_SHEETS_WEB_APP_URL);
+            const data = await response.json();
+            const saved = data.status === 'success' && data.actions?.find(a => a.id === id);
+            if (!saved || Object.keys(assignment).some(key => saved[key] !== assignment[key])) {
+                throw new Error('Reassignment could not be confirmed. Check the sheet and ensure the updated Code.gs is deployed before retrying.');
+            }
+            Object.assign(item, { responsible: saved.responsible, respEmail: saved.respEmail,
+                accountable: saved.accountable, accEmail: saved.accEmail });
+        } else {
+            const groups = ['all', 'all team members', 'everyone', 'all teams'];
+            if (assignment.responsible) {
+                item.responsible = responsible;
+                item.respEmail = groups.includes(responsible.toLowerCase())
+                    ? [...new Set(peopleStore.filter(p => !groups.includes(p.name.toLowerCase()) && p.email).map(p => p.email))].join(', ')
+                    : (peopleStore.find(p => p.name === responsible)?.email || '');
+            }
+            if (assignment.accountable) {
+                item.accountable = accountable;
+                item.accEmail = peopleStore.find(p => p.name === accountable)?.email || '';
+            }
+        }
+        item.respRole = peopleStore.find(p => p.name === item.responsible)?.role || 'Member';
+        saveStore();
+        renderDashboard();
+        renderTable();
+        document.getElementById('updateItemInfo').textContent = `${item.id} — ${item.actionItem} | Responsible: ${item.responsible} | Accountable: ${item.accountable}`;
+        message.textContent = GOOGLE_SHEETS_WEB_APP_URL ? 'Reassignment confirmed in Google Sheets.' : 'Reassignment saved in this browser.';
+    } catch (error) {
+        message.textContent = error.message || 'Could not confirm reassignment. Check Google Sheets before retrying.';
+    } finally {
+        button.disabled = false;
+    }
 }
 
 function toggleBlockerField() {
