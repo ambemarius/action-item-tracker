@@ -784,6 +784,82 @@ body {
 .action-title-button { display: block; background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
 .action-title-button:hover { text-decoration: underline; }
 .action-title-button:focus-visible { outline: 2px solid var(--accent-indigo); outline-offset: 4px; }
+
+/* Phone layout: action cards instead of a horizontally scrolling spreadsheet. */
+@media (min-width: 761px) and (max-width: 1100px) {
+    .header-container { flex-wrap: wrap; gap: 16px; }
+    .header-actions { flex-wrap: wrap; }
+}
+@media (max-width: 760px) {
+    body { font-size: 14px; line-height: 1.45; }
+    .brand-text h1 { font-size: 18px; }
+    .brand-text .sub-title { font-size: 11px; }
+    .brand-logo { width: 36px; height: 36px; flex-shrink: 0; font-size: 17px; }
+    .app-header { position: relative; padding: 16px; }
+    .header-container { flex-direction: column; align-items: stretch; gap: 16px; }
+    .header-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .header-actions .btn { justify-content: center; padding: 10px 8px; font-size: 12px; }
+    .header-actions .btn[onclick="saveGoogleSheetsUrl()"] { display: none; }
+    .header-actions .btn-primary { grid-column: 1 / -1; }
+    .btn, .close-btn, .tab-btn { min-height: 44px; }
+    .close-btn { min-width: 44px; flex-shrink: 0; }
+    .app-container { margin: 20px auto; padding: 0 16px; gap: 24px; }
+    .section-title { flex-wrap: wrap; gap: 8px; }
+    .section-title h2 { font-size: 18px; }
+    .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric-card { padding: 12px; gap: 8px; min-width: 0; }
+    .metric-icon { width: 30px; height: 30px; flex-shrink: 0; font-size: 14px; }
+    .metric-label { font-size: 11px; }
+    .metric-info h3 { font-size: 22px; }
+    .chart-card h3, .attention-header h3 { font-size: 14px; }
+    .attention-title { font-size: 13px; }
+    .attention-header .subtitle { font-size: 12px; }
+    .charts-grid, .attention-list { grid-template-columns: minmax(0, 1fr); }
+    .chart-card, .attention-panel { padding: 16px; min-width: 0; }
+    .attention-list { max-height: 320px; overflow-y: auto; }
+    .attention-meta { flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+    .tracker-header, .toolbar, .search-box { width: 100%; min-width: 0; }
+    .search-box input { width: 100%; }
+    .filter-group { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; }
+    .filter-group select { width: 100%; min-height: 44px; }
+    .table-scroll-hint { display: none; }
+    .tracker-scroll-region { max-height: none; overflow: visible; border: 0; background: none; box-shadow: none; scrollbar-gutter: auto; }
+    .tracker-scroll-region .action-table,
+    .tracker-scroll-region .action-table tbody { display: block; width: 100%; }
+    .tracker-scroll-region .action-table thead { display: none; }
+    .tracker-scroll-region .action-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 14px; margin-bottom: 12px; gap: 10px; }
+    .tracker-scroll-region .action-table { font-size: 13px; }
+    .tracker-scroll-region .action-table small { font-size: 12px; }
+    .tracker-scroll-region .action-table td { display: block; min-width: 0; max-width: none; padding: 0; border: 0; overflow-wrap: anywhere; }
+    .tracker-scroll-region .action-table td:first-child { display: block; grid-column: 1 / -1; }
+    .tracker-scroll-region .action-table .item-cell { grid-column: 1 / -1; min-width: 0; }
+    .tracker-scroll-region .action-table td:nth-child(5),
+    .tracker-scroll-region .action-table td:nth-child(6) { grid-column: 1 / -1; border-top: 1px solid var(--border-color); padding-top: 10px; }
+    .tracker-scroll-region .action-table td:nth-child(8),
+    .tracker-scroll-region .action-table td:nth-child(10) { display: none; }
+    .tracker-scroll-region .action-table td:last-child { position: static; box-shadow: none; grid-column: 1 / -1; background: none; }
+    .tracker-scroll-region .action-table td:last-child .btn { width: 100%; justify-content: center; }
+    .tracker-scroll-region td[data-label]::before { content: attr(data-label); display: block; color: var(--text-secondary); font-size: 11px; margin-bottom: 4px; }
+    .item-title { font-size: 13px; line-height: 1.45; }
+    .id-badge { font-size: 11px; }
+    .item-sub { margin-top: 8px; }
+    .badge { max-width: 100%; white-space: normal; }
+    .modal-overlay { padding: 8px; }
+    .modal-card { width: 100%; max-height: 96vh; max-height: 96dvh; }
+    .modal-header, .modal-body, .modal-footer { padding: 14px; }
+    .modal-header, .modal-footer { flex-shrink: 0; }
+    .modal-header h3 { font-size: 15px; }
+    .info-banner { font-size: 13px; line-height: 1.5; }
+    .reassignment-fields legend { font-size: 14px; }
+    .reassignment-fields small, #reassignMessage { font-size: 12px; }
+    .modal-body .btn, .modal-footer .btn { font-size: 13px; }
+    .form-row { grid-template-columns: minmax(0, 1fr); }
+    .form-group { min-width: 0; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; min-width: 0; font-size: 16px; }
+    .modal-footer .btn { flex: 1; justify-content: center; padding: 10px; }
+    .info-banner, .reassignment-fields { overflow-wrap: anywhere; }
+    .tab-buttons { flex-wrap: wrap; }
+}
 .reassignment-fields { display: flex; flex-direction: column; gap: 12px; min-width: 0; border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; }
 .reassignment-fields legend { padding: 0 6px; }
 .reassignment-fields small, #reassignMessage { color: var(--text-secondary); }

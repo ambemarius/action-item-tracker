@@ -318,6 +318,12 @@ function renderCharts() {
     drawTeamChart();
 }
 
+let chartResizeFrame;
+window.addEventListener('resize', () => {
+    cancelAnimationFrame(chartResizeFrame);
+    chartResizeFrame = requestAnimationFrame(renderCharts);
+});
+
 function drawStatusChart() {
     const canvas = document.getElementById('chartStatus');
     if (!canvas) return;
@@ -511,18 +517,18 @@ function renderTable() {
             </td>
             <td><span class="badge" style="background:rgba(255,255,255,0.06); color:#CBD5E1;">${item.team}</span></td>
             <td><span class="prio-badge prio-${item.priority.toLowerCase()}">${item.priority}</span></td>
-            <td>${respDisplay}</td>
-            <td>${accDisplay}</td>
-            <td>
+            <td data-label="Responsible">${respDisplay}</td>
+            <td data-label="Accountable">${accDisplay}</td>
+            <td data-label="Timeline">
                 <small style="color:#94A3B8">Due: ${item.dueDate || 'N/A'}</small>
             </td>
             <td><span class="badge badge-${badgeClass(item.status)}">${item.status}</span></td>
-            <td>
+            <td data-label="Progress">
                 <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${item.pctComplete}%"></div></div>
                 <small>${item.pctComplete}%</small>
             </td>
             <td><span class="badge badge-${badgeClass(item.health)}">${item.health}</span></td>
-            <td><strong style="color:${daysColor(item.daysRemaining)}">${item.daysRemaining}</strong></td>
+            <td data-label="Days left"><strong style="color:${daysColor(item.daysRemaining)}">${item.daysRemaining}</strong></td>
             <td>
                 <button class="btn btn-sm btn-secondary" onclick="openUpdateModal('${item.id}')">
                     <i class="fa-solid fa-pen"></i> Update
