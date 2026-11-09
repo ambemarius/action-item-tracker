@@ -169,6 +169,7 @@
                             <option value="Blocked">Blocked</option>
                             <option value="Completed">Completed</option>
                             <option value="On Hold">On Hold</option>
+                            <option value="Cancelled">Cancelled</option>
                         </select>
 
                         <select id="filterPriority" onchange="filterTable()">
@@ -179,14 +180,9 @@
                             <option value="Low">Low</option>
                         </select>
 
+                        <!-- Options are built from the teams in the data (see populateTeamFilter in app.js) -->
                         <select id="filterTeam" onchange="filterTable()">
                             <option value="">All Teams</option>
-                            <option value="Administration">Administration</option>
-                            <option value="Finance">Finance</option>
-                            <option value="Programs">Programs</option>
-                            <option value="Operations">Operations</option>
-                            <option value="Communications">Communications</option>
-                            <option value="Monitoring & Evaluation">Monitoring & Evaluation</option>
                         </select>
                     </div>
                 </div>
@@ -248,14 +244,8 @@
                         </div>
                         <div class="form-group">
                             <label>Team / Department <span class="required">*</span></label>
-                            <select id="personTeam" required>
-                                <option value="Administration">Administration</option>
-                                <option value="Finance">Finance</option>
-                                <option value="Programs">Programs</option>
-                                <option value="Operations">Operations</option>
-                                <option value="Communications">Communications</option>
-                                <option value="Monitoring & Evaluation">Monitoring & Evaluation</option>
-                            </select>
+                            <!-- Options are built from real team names (see populateTeamSelects in app.js) -->
+                            <select id="personTeam" required></select>
                         </div>
                     </div>
                     <div style="display:flex; justify-content:flex-end; margin-top:10px;">
@@ -322,14 +312,8 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label>Core Team <span class="required">*</span></label>
-                            <select id="newTeam" required>
-                                <option value="Administration">Administration</option>
-                                <option value="Finance">Finance</option>
-                                <option value="Programs">Programs</option>
-                                <option value="Operations">Operations</option>
-                                <option value="Communications">Communications</option>
-                                <option value="Monitoring & Evaluation">Monitoring & Evaluation</option>
-                            </select>
+                            <!-- Options are built from real team names (see populateTeamSelects in app.js) -->
+                            <select id="newTeam" required></select>
                         </div>
                         <div class="form-group">
                             <label>Priority <span class="required">*</span></label>

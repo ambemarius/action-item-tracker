@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStore();
     recalculateAllHealth();
     populatePeopleDropdowns();
+    populateTeamSelects();
     renderPeopleTable();
     renderDashboard();
     renderTable();
@@ -75,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function fetchFromGoogleSheets() {
-    if (!GOOGLE_SHEETS_WEB_APP_URL) return;
+    if (!GOOGLE_SHEETS_WEB_APP_URL) return false;
     try {
         const res = await fetch(GOOGLE_SHEETS_WEB_APP_URL);
         const data = await res.json();
@@ -93,10 +94,12 @@ async function fetchFromGoogleSheets() {
             renderDashboard();
             renderTable();
             console.log("✅ Synced live data from Google Sheets API!");
+            return true;
         }
     } catch (e) {
         console.warn("Could not sync from Google Sheets API:", e);
     }
+    return false;
 }
 
 function saveGoogleSheetsUrl() {
@@ -217,6 +220,7 @@ function deletePerson(index) {
 }
 
 function openPeopleModal() {
+    populateTeamSelects();
     renderPeopleTable();
     openModal('peopleModal');
 }
@@ -299,14 +303,14 @@ function renderAttentionList() {
     attentionContainer.innerHTML = urgentItems.map(item => `
         <div class="attention-card" style="border-left: 4px solid ${getHealthColor(item.health)};">
             <div class="attention-card-header">
-                <span class="id-badge">${item.id}</span>
-                <span class="badge badge-${badgeClass(item.health)}">${item.health}</span>
+                <span class="id-badge">${escapeHtml(item.id)}</span>
+                <span class="badge badge-${badgeClass(item.health)}">${escapeHtml(item.health)}</span>
             </div>
             <div class="attention-title">${escapeHtml(item.actionItem)}</div>
             <div class="attention-meta">
                 <span><i class="fa-solid fa-user-check"></i> Resp: ${item.responsible === 'All' || item.responsible === 'All Team Members' ? '<strong style="color:#60A5FA;">👥 All Team Members</strong>' : escapeHtml(item.responsible)}</span>
                 <span><i class="fa-solid fa-shield-halved"></i> Acc: ${escapeHtml(item.accountable || 'Arthur')}</span>
-                <span><i class="fa-regular fa-calendar-xmark"></i> Due: ${item.dueDate}</span>
+                <span><i class="fa-regular fa-calendar-xmark"></i> Due: ${escapeHtml(item.dueDate)}</span>
             </div>
         </div>
     `).join('');
@@ -331,29 +335,33 @@ function drawStatusChart() {
     canvas.width = canvas.parentElement.clientWidth;
     canvas.height = 200;
 
-    const counts = {
-        'Completed': actionsStore.filter(a => a.status === 'Completed').length,
-        'In Progress': actionsStore.filter(a => a.status === 'In Progress').length,
-        'Not Started': actionsStore.filter(a => a.status === 'Not Started').length,
-        'Blocked': actionsStore.filter(a => a.status === 'Blocked').length
-    };
-
-    const colors = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444'];
-    const keys = Object.keys(counts);
-    const maxVal = Math.max(...Object.values(counts), 1);
+    const statuses = [
+        ['Completed', '#10B981'],
+        ['In Progress', '#3B82F6'],
+        ['Not Started', '#F59E0B'],
+        ['Blocked', '#EF4444'],
+        ['On Hold', '#A78BFA'],
+        ['Cancelled', '#64748B']
+    ];
+    // Always show the four core statuses; show On Hold / Cancelled only when used.
+    const bars = statuses
+        .map(([key, color]) => ({ key, color, val: actionsStore.filter(a => a.status === key).length }))
+        .filter((b, idx) => idx < 4 || b.val > 0);
+    const maxVal = Math.max(...bars.map(b => b.val), 1);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const barWidth = (canvas.width - 60) / keys.length;
+    const barWidth = (canvas.width - 20) / bars.length;
+    const gap = Math.min(10, barWidth * 0.15);
+    const narrow = barWidth < 72;
 
-    keys.forEach((key, idx) => {
-        const val = counts[key];
-        const barHeight = (val / maxVal) * 130;
-        const x = 30 + idx * barWidth;
-        const y = 160 - barHeight;
+    bars.forEach(({ key, color, val }, idx) => {
+        const barHeight = (val / maxVal) * 120;
+        const x = 10 + idx * barWidth;
+        const y = 150 - barHeight;
 
-        ctx.fillStyle = colors[idx];
+        ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.roundRect(x + 10, y, barWidth - 20, barHeight, [4, 4, 0, 0]);
+        ctx.roundRect(x + gap, y, barWidth - gap * 2, barHeight, [4, 4, 0, 0]);
         ctx.fill();
 
         ctx.fillStyle = '#FFFFFF';
@@ -361,9 +369,11 @@ function drawStatusChart() {
         ctx.textAlign = 'center';
         ctx.fillText(val, x + barWidth / 2, y - 6);
 
+        // Split two-word labels onto two lines when bars are narrow (mobile).
         ctx.fillStyle = '#94A3B8';
-        ctx.font = '11px Inter';
-        ctx.fillText(key, x + barWidth / 2, 180);
+        ctx.font = (narrow ? '10px' : '11px') + ' Inter';
+        const lines = narrow ? key.split(' ') : [key];
+        lines.forEach((line, i) => ctx.fillText(line, x + barWidth / 2, 168 + i * 13));
     });
 }
 
@@ -456,7 +466,57 @@ function drawTeamChart() {
     });
 }
 
+// Teams are compared ignoring case and extra spaces, so "Public health" and
+// "Public Health" count as the same team.
+function normalizeTeam(team) {
+    return String(team ?? '').trim().replace(/&/g, ' and ').replace(/\s+/g, ' ').toLowerCase();
+}
+
+// Used only if there is no data at all to take team names from.
+const fallbackTeams = ["Admin and Finance", "All teams", "Data Management", "Design, media and web", "Public health"];
+
+// Unique teams as [normalizedKey, displayName], sorted by name. Action items come
+// first so their spelling wins; people's teams are added when includePeople is true.
+function getTeamList(includePeople) {
+    const teams = new Map();
+    const add = team => {
+        const key = normalizeTeam(team);
+        if (key && !teams.has(key)) teams.set(key, String(team).trim());
+    };
+    actionsStore.forEach(a => add(a.team));
+    if (includePeople) peopleStore.forEach(p => add(p.team));
+    if (!teams.size) fallbackTeams.forEach(add);
+    return [...teams].sort((a, b) => a[1].localeCompare(b[1]));
+}
+
+// Rebuild the team filter from the teams actually present in the data,
+// keeping the current selection if that team still exists.
+function populateTeamFilter() {
+    const select = document.getElementById('filterTeam');
+    if (!select) return;
+    const current = select.value;
+    const teams = getTeamList(false);
+
+    select.replaceChildren(new Option('All Teams', ''));
+    teams.forEach(([key, label]) => select.appendChild(new Option(label, key)));
+    select.value = teams.some(([key]) => key === current) ? current : '';
+}
+
+// Fill the team dropdowns in the New Action and Team Directory forms with real team
+// names (the saved value is the team name itself, matching the existing data).
+function populateTeamSelects() {
+    const teams = getTeamList(true);
+    ['newTeam', 'personTeam'].forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        const current = select.value;
+        select.replaceChildren(...teams.map(([, label]) => new Option(label, label)));
+        if (teams.some(([, label]) => label === current)) select.value = current;
+    });
+}
+
 function renderTable() {
+    populateTeamFilter();
     const tbody = document.getElementById('tableBody');
     const search = document.getElementById('searchInput').value.toLowerCase();
     const filterStatus = document.getElementById('filterStatus').value;
@@ -464,14 +524,12 @@ function renderTable() {
     const filterTeam = document.getElementById('filterTeam').value;
 
     const filtered = actionsStore.filter(item => {
-        const matchSearch = item.id.toLowerCase().includes(search) ||
-            item.actionItem.toLowerCase().includes(search) ||
-            item.responsible.toLowerCase().includes(search) ||
-            item.deliverable.toLowerCase().includes(search);
+        const matchSearch = [item.id, item.actionItem, item.responsible, item.deliverable]
+            .some(field => String(field ?? '').toLowerCase().includes(search));
 
         const matchStatus = !filterStatus || item.status === filterStatus;
         const matchPriority = !filterPriority || item.priority === filterPriority;
-        const matchTeam = !filterTeam || item.team === filterTeam;
+        const matchTeam = !filterTeam || normalizeTeam(item.team) === filterTeam;
 
         return matchSearch && matchStatus && matchPriority && matchTeam;
     });
@@ -506,31 +564,31 @@ function renderTable() {
 
         return `
         <tr>
-            <td><span class="id-badge">${item.id}</span></td>
+            <td><span class="id-badge">${escapeHtml(item.id)}</span></td>
             <td class="item-cell">
-                <button type="button" class="item-title action-title-button" onclick="openUpdateModal('${item.id}')">${escapeHtml(item.actionItem)}</button>
+                <button type="button" class="item-title action-title-button" data-id="${escapeHtml(item.id)}" onclick="openUpdateModal(this.dataset.id)">${escapeHtml(item.actionItem)}</button>
                 <div class="item-status-summary">
                     <span><span class="summary-label">Status</span> <span class="badge badge-${badgeClass(item.status)}">${escapeHtml(item.status)}</span></span>
                     <span><span class="summary-label">Health</span> <span class="badge badge-${badgeClass(item.health)}">${escapeHtml(item.health)}</span></span>
                 </div>
                 <div class="item-sub">🎯 ${escapeHtml(item.deliverable)}</div>
             </td>
-            <td><span class="badge" style="background:rgba(255,255,255,0.06); color:#CBD5E1;">${item.team}</span></td>
-            <td><span class="prio-badge prio-${item.priority.toLowerCase()}">${item.priority}</span></td>
+            <td><span class="badge" style="background:rgba(255,255,255,0.06); color:#CBD5E1;">${escapeHtml(item.team)}</span></td>
+            <td><span class="prio-badge prio-${badgeClass(item.priority)}">${escapeHtml(item.priority)}</span></td>
             <td data-label="Responsible">${respDisplay}</td>
             <td data-label="Accountable">${accDisplay}</td>
             <td data-label="Timeline">
-                <small style="color:#94A3B8">Due: ${item.dueDate || 'N/A'}</small>
+                <small style="color:#94A3B8">Due: ${escapeHtml(item.dueDate || 'N/A')}</small>
             </td>
-            <td><span class="badge badge-${badgeClass(item.status)}">${item.status}</span></td>
+            <td><span class="badge badge-${badgeClass(item.status)}">${escapeHtml(item.status)}</span></td>
             <td data-label="Progress">
-                <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${item.pctComplete}%"></div></div>
-                <small>${item.pctComplete}%</small>
+                <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pctOf(item)}%"></div></div>
+                <small>${pctOf(item)}%</small>
             </td>
-            <td><span class="badge badge-${badgeClass(item.health)}">${item.health}</span></td>
-            <td data-label="Days left"><strong style="color:${daysColor(item.daysRemaining)}">${item.daysRemaining}</strong></td>
+            <td><span class="badge badge-${badgeClass(item.health)}">${escapeHtml(item.health)}</span></td>
+            <td data-label="Days left"><strong style="color:${daysColor(item.daysRemaining)}">${escapeHtml(item.daysRemaining)}</strong></td>
             <td>
-                <button class="btn btn-sm btn-secondary" onclick="openUpdateModal('${item.id}')">
+                <button class="btn btn-sm btn-secondary" data-id="${escapeHtml(item.id)}" onclick="openUpdateModal(this.dataset.id)">
                     <i class="fa-solid fa-pen"></i> Update
                 </button>
             </td>
@@ -540,6 +598,12 @@ function renderTable() {
 
 function filterTable() {
     renderTable();
+}
+
+// Clamp progress to a whole number between 0 and 100 for display.
+function pctOf(item) {
+    const pct = Math.round(Number(item.pctComplete) || 0);
+    return Math.min(100, Math.max(0, pct));
 }
 
 function generateNextId() {
@@ -645,6 +709,19 @@ async function handleNewActionSubmit(e) {
                 })
             });
         } catch (e) { console.warn("Failed to post to Google Sheets API:", e); }
+
+        // The sheet assigns its own ID, which may differ from the local guess.
+        // Re-sync and report the ID the sheet actually gave this item.
+        if (await fetchFromGoogleSheets()) {
+            const saved = actionsStore.find(a =>
+                a.actionItem === newItem.actionItem && a.dueDate === newItem.dueDate && a.responsible === newItem.responsible);
+            alert(saved
+                ? `✅ Action Item Created! Assigned ID: ${saved.id}`
+                : `⚠️ Action item sent, but it does not appear in Google Sheets yet. Refresh in a moment to check.`);
+            return;
+        }
+        alert(`⚠️ Action item saved in this browser as ${newId}, but Google Sheets could not be reached to confirm it.`);
+        return;
     }
 
     alert(`✅ Action Item Created! Assigned ID: ${newId}`);
@@ -659,8 +736,8 @@ function openUpdateModal(id) {
     document.getElementById('reassignMessage').textContent = '';
     document.getElementById('updateTargetId').value = item.id;
     document.getElementById('updateItemInfo').innerHTML = `
-        <strong>${item.id}</strong> — ${escapeHtml(item.actionItem)}<br>
-        <small>Responsible: ${item.responsible} (${item.respEmail}) | Current Status: ${item.status}</small>
+        <strong>${escapeHtml(item.id)}</strong> — ${escapeHtml(item.actionItem)}<br>
+        <small>Responsible: ${escapeHtml(item.responsible)} (${escapeHtml(item.respEmail)}) | Current Status: ${escapeHtml(item.status)}</small>
     `;
     document.getElementById('updateStatus').value = item.status;
     document.getElementById('updatePct').value = item.pctComplete;
@@ -766,7 +843,7 @@ async function handleUpdateActionSubmit(e) {
     if (!item) return;
 
     const newStatus = document.getElementById('updateStatus').value;
-    let newPct = parseInt(document.getElementById('updatePct').value, 10) || 0;
+    let newPct = Math.min(100, Math.max(0, parseInt(document.getElementById('updatePct').value, 10) || 0));
 
     if (newStatus === 'Completed') {
         newPct = 100;
@@ -802,7 +879,9 @@ async function handleUpdateActionSubmit(e) {
                         "web_user@example.org",
                         item.id,
                         item.status,
-                        item.pctComplete,
+                        // Sheet stores progress as a fraction (0.5 = 50%). Sending a fraction
+                        // as a string keeps 1% and 0% from being misread by the script.
+                        String(item.pctComplete / 100),
                         item.latestUpdate,
                         item.blocker,
                         item.dueDate,
@@ -826,6 +905,7 @@ function closeModal(modalId) {
 
 function openNewActionModal() {
     populatePeopleDropdowns();
+    populateTeamSelects();
     openModal('newActionModal');
 }
 
@@ -834,7 +914,7 @@ function openAppsScriptModal() {
 }
 
 function badgeClass(str) {
-    return str.toLowerCase().replace(/\s+/g, '');
+    return String(str ?? '').toLowerCase().replace(/[^a-z]/g, '');
 }
 
 function getHealthColor(health) {
@@ -857,7 +937,9 @@ function daysColor(days) {
 }
 
 function escapeHtml(str) {
-    return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return String(str ?? '')
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 function switchCodeTab(tabId, e) {

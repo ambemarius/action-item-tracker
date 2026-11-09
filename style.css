@@ -594,6 +594,8 @@ body {
 .badge-overdue { background: var(--color-overdue-bg); color: var(--color-overdue); }
 .badge-duesoon { background: var(--color-duesoon-bg); color: var(--color-duesoon); }
 .badge-ontrack { background: var(--color-ontrack-bg); color: var(--color-ontrack); }
+.badge-onhold { background: rgba(167, 139, 250, 0.16); color: #A78BFA; }
+.badge-cancelled { background: rgba(100, 116, 139, 0.2); color: #94A3B8; }
 
 .prio-badge {
     padding: 2px 8px;
