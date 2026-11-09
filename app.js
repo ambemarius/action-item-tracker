@@ -260,8 +260,20 @@ function calculateDaysRemaining(item) {
     return diff;
 }
 
+const STATUSES = ['Not Started', 'In Progress', 'Blocked', 'Completed', 'On Hold', 'Cancelled'];
+const STATUS_ALIASES = { complete: 'Completed', done: 'Completed', closed: 'Completed', canceled: 'Cancelled' };
+
+// Map a status from the sheet to its standard spelling, ignoring case and extra
+// spaces, so "completed " or "Done" still count as Completed.
+function canonicalStatus(status) {
+    const key = String(status ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+    if (!key) return 'Not Started';
+    return STATUS_ALIASES[key] || STATUSES.find(s => s.toLowerCase() === key) || String(status).trim();
+}
+
 function recalculateAllHealth() {
     actionsStore.forEach(item => {
+        item.status = canonicalStatus(item.status);
         item.health = calculateHealth(item);
         item.daysRemaining = calculateDaysRemaining(item);
     });
@@ -890,6 +902,19 @@ async function handleUpdateActionSubmit(e) {
                 })
             });
         } catch (e) { console.warn("Failed to post update to Google Sheets API:", e); }
+
+        // Reload from the sheet so the page shows what was really saved. If the new
+        // status did not reach the sheet, say so instead of claiming success.
+        if (await fetchFromGoogleSheets()) {
+            const saved = actionsStore.find(a => a.id === id);
+            if (!saved || saved.status !== newStatus) {
+                alert(`⚠️ ${id} was not updated in Google Sheets (it still shows "${saved ? saved.status : 'missing'}"). Please try again or check the sheet.`);
+                return;
+            }
+        } else {
+            alert(`⚠️ ${id} was updated in this browser, but Google Sheets could not be reached to confirm it.`);
+            return;
+        }
     }
 
     alert(`✅ Action Item ${id} Updated Successfully!`);
