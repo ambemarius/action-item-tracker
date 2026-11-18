@@ -3,7 +3,17 @@
  * Interactive UI Engine, Data Handler & Real THRIVE Action Items
  */
 
-let GOOGLE_SHEETS_WEB_APP_URL = localStorage.getItem('google_sheet_webapp_url') || "https://script.google.com/macros/s/AKfycbza2H-bbGcbGmUAycjoET_vQutfiKP7nPBjKUTWzY7FDL82wqSI9StbK8f0wiJFiGQbTQ/exec";
+const DEFAULT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxnIQYloiQncr1GL6xztPpBO_W5PV2L2BjwmYIc2yKeSQKEWfNMsVsP1-jYkjLYFf2ElQ/exec";
+// Older deployments that run outdated Code.gs. Browsers that saved one of these
+// via "Link Google Sheet" are moved to the current deployment automatically.
+const RETIRED_WEB_APP_URLS = [
+    "https://script.google.com/macros/s/AKfycbza2H-bbGcbGmUAycjoET_vQutfiKP7nPBjKUTWzY7FDL82wqSI9StbK8f0wiJFiGQbTQ/exec"
+];
+let GOOGLE_SHEETS_WEB_APP_URL = localStorage.getItem('google_sheet_webapp_url') || DEFAULT_WEB_APP_URL;
+if (RETIRED_WEB_APP_URLS.includes(GOOGLE_SHEETS_WEB_APP_URL)) {
+    GOOGLE_SHEETS_WEB_APP_URL = DEFAULT_WEB_APP_URL;
+    localStorage.setItem('google_sheet_webapp_url', DEFAULT_WEB_APP_URL);
+}
 
 // Organizational Directory (THRIVE Team Members)
 const defaultPeople = [

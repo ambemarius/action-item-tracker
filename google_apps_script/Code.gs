@@ -112,7 +112,7 @@ function doPost(e) {
     const actionType = postData.actionType; // "create" or "update"
 
     if (actionType === "reassign") {
-      reassignActionOwners(postData.actionId, postData.assignment);
+      reassignActionOwners_(postData.actionId, postData.assignment);
       return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
         .setMimeType(ContentService.MimeType.JSON);
     } else if (actionType === "create") {
@@ -120,7 +120,7 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Created new Action Item" }))
         .setMimeType(ContentService.MimeType.JSON);
     } else if (actionType === "update") {
-      applyWebUpdate(postData);
+      applyWebUpdate_(postData);
       return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Updated Action Item" }))
         .setMimeType(ContentService.MimeType.JSON);
     }
@@ -180,7 +180,7 @@ function findTeamName_(team) {
 
 // Web app "update": validates every requested change first, then writes only the
 // affected cells, then applies the progress update (status, %, notes, due date, link).
-function applyWebUpdate(postData) {
+function applyWebUpdate_(postData) {
   const values = (postData.values || []).slice();
   const actionId = String(postData.actionId || values[1] || "").trim();
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Action Tracker");
@@ -248,7 +248,7 @@ function prepareAssignmentWrites_(assignment) {
 }
 
 // Kept for older versions of the web page that still send "reassign" on its own.
-function reassignActionOwners(actionId, assignment) {
+function reassignActionOwners_(actionId, assignment) {
   if (!actionId || !assignment) throw new Error("Action ID and assignment are required.");
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Action Tracker");
   const rowNumber = findSingleActionRow_(sheet, actionId);
