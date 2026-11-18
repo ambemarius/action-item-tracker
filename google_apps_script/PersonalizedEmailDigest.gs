@@ -300,7 +300,7 @@ function buildHtmlEmailBody(name, tasks, total, inProgress, overdue, blocked, no
               <!-- CTA Footer Buttons -->
               <tr>
                 <td style="background: #0F172A; padding: 20px 30px; text-align: center; border-top: 1px solid #1E293B;">
-                  <a href="${escapeHtmlStr(getSetting("Dashboard URL", "https://ambemarius.github.io/action-item-tracker./"))}" target="_blank" style="background: linear-gradient(135deg, #6366F1, #8B5CF6); color: #FFFFFF; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 12px rgba(99,102,241,0.4);">
+                  <a href="${escapeHtmlStr(getSetting("Dashboard URL", "https://ambemarius.github.io/action-item-tracker/"))}" target="_blank" style="background: linear-gradient(135deg, #6366F1, #8B5CF6); color: #FFFFFF; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 12px rgba(99,102,241,0.4);">
                     🌐 Open Interactive Dashboard
                   </a>
                   <p style="margin: 15px 0 0 0; color: #64748B; font-size: 12px;">Automated Notification System • THRIVE Executive Command Center</p>
