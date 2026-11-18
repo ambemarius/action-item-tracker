@@ -58,6 +58,10 @@ const defaultActions = [
 
 let actionsStore = [];
 let peopleStore = [];
+let teamsStore = []; // Team names from the sheet's "Teams" tab
+
+// Names that mean "everyone" rather than one person.
+const GROUP_NAMES = ['all', 'all team members', 'everyone', 'all teams'];
 
 document.addEventListener('DOMContentLoaded', () => {
     loadStore();
@@ -75,10 +79,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// The read URL gets a unique query value so the browser never serves an old copy.
+function sheetReadUrl() {
+    const sep = GOOGLE_SHEETS_WEB_APP_URL.includes('?') ? '&' : '?';
+    return `${GOOGLE_SHEETS_WEB_APP_URL}${sep}_=${Date.now()}`;
+}
+
+// Send a change to the Apps Script web app. A text/plain POST lets us read the
+// script's reply, so errors from the sheet are shown instead of silently lost.
+// Returns the reply, or null if the reply could not be read (the caller then
+// re-reads the sheet to check). Throws if the sheet reports an error.
+async function postToSheet(payload) {
+    let res;
+    try {
+        res = await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+            body: JSON.stringify(payload)
+        });
+    } catch (e) {
+        // The request was most likely delivered; only the reply was unreadable.
+        // Never resend here, or a "create" could be added twice.
+        console.warn('Could not read the Google Sheets reply:', e);
+        return null;
+    }
+    let data;
+    try { data = await res.json(); } catch (e) { return null; }
+    if (!data || data.status !== 'success') {
+        throw new Error((data && data.message) || 'Google Sheets rejected the change.');
+    }
+    return data;
+}
+
 async function fetchFromGoogleSheets() {
     if (!GOOGLE_SHEETS_WEB_APP_URL) return false;
     try {
-        const res = await fetch(GOOGLE_SHEETS_WEB_APP_URL);
+        const res = await fetch(sheetReadUrl(), { cache: 'no-store' });
         const data = await res.json();
         if (data && data.status === "success") {
             if (data.actions && data.actions.length > 0) {
@@ -89,8 +125,13 @@ async function fetchFromGoogleSheets() {
                 peopleStore = data.people;
                 savePeopleStore();
             }
+            if (Array.isArray(data.teams)) {
+                teamsStore = data.teams;
+                saveTeamsStore();
+            }
             recalculateAllHealth();
             populatePeopleDropdowns();
+            populateTeamSelects();
             renderDashboard();
             renderTable();
             console.log("✅ Synced live data from Google Sheets API!");
@@ -130,6 +171,12 @@ function loadStore() {
         peopleStore = defaultPeople;
         savePeopleStore();
     }
+
+    try { teamsStore = JSON.parse(localStorage.getItem('action_tracker_teams')) || []; } catch (e) { teamsStore = []; }
+}
+
+function saveTeamsStore() {
+    localStorage.setItem('action_tracker_teams', JSON.stringify(teamsStore));
 }
 
 function saveStore() {
@@ -484,21 +531,42 @@ function normalizeTeam(team) {
     return String(team ?? '').trim().replace(/&/g, ' and ').replace(/\s+/g, ' ').toLowerCase();
 }
 
-// Used only if there is no data at all to take team names from.
-const fallbackTeams = ["Admin and Finance", "All teams", "Data Management", "Design, media and web", "Public health"];
+// Teams used when no Google Sheet is linked (browser-only mode).
+const defaultTeams = ["Admin and Finance", "All teams", "Data Management", "Design, media and web", "Office Operation", "Public health"];
 
-// Unique teams as [normalizedKey, displayName], sorted by name. Action items come
-// first so their spelling wins; people's teams are added when includePeople is true.
+// Unique teams as [normalizedKey, displayName], sorted by name. When a sheet is linked,
+// its Teams tab comes first so its spelling wins; then teams used by action items, and
+// people's teams when includePeople is true.
 function getTeamList(includePeople) {
     const teams = new Map();
     const add = team => {
         const key = normalizeTeam(team);
         if (key && !teams.has(key)) teams.set(key, String(team).trim());
     };
+    (GOOGLE_SHEETS_WEB_APP_URL ? teamsStore : defaultTeams).forEach(add);
     actionsStore.forEach(a => add(a.team));
     if (includePeople) peopleStore.forEach(p => add(p.team));
-    if (!teams.size) fallbackTeams.forEach(add);
+    if (!teams.size) defaultTeams.forEach(add);
     return [...teams].sort((a, b) => a[1].localeCompare(b[1]));
+}
+
+// Team dropdown in the Update form: real team names, with the item's current team selected.
+function populateUpdateTeamSelect(currentTeam) {
+    const select = document.getElementById('updateTeam');
+    const teams = getTeamList(true);
+    const currentKey = normalizeTeam(currentTeam);
+    if (currentKey && !teams.some(([key]) => key === currentKey)) {
+        teams.push([currentKey, String(currentTeam).trim()]);
+    }
+    select.replaceChildren(...teams.map(([, label]) => new Option(label, label)));
+    const match = teams.find(([key]) => key === currentKey);
+    select.value = match ? match[1] : '';
+}
+
+// Select a value in a dropdown, adding it as an option first if it is missing.
+function setSelectValue(select, value) {
+    if (value && ![...select.options].some(o => o.value === value)) select.appendChild(new Option(value, value));
+    select.value = value || '';
 }
 
 // Rebuild the team filter from the teams actually present in the data,
@@ -696,11 +764,7 @@ async function handleNewActionSubmit(e) {
 
     if (GOOGLE_SHEETS_WEB_APP_URL) {
         try {
-            await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
-                method: "POST",
-                mode: "no-cors",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
+            await postToSheet({
                     actionType: "create",
                     values: [
                         "web_user@example.org",
@@ -718,9 +782,12 @@ async function handleNewActionSubmit(e) {
                         newItem.link,
                         ""
                     ]
-                })
             });
-        } catch (e) { console.warn("Failed to post to Google Sheets API:", e); }
+        } catch (e) {
+            alert(`⚠️ Google Sheets did not save the new action item: ${e.message}`);
+            await fetchFromGoogleSheets();
+            return;
+        }
 
         // The sheet assigns its own ID, which may differ from the local guess.
         // Re-sync and report the ID the sheet actually gave this item.
@@ -745,7 +812,10 @@ function openUpdateModal(id) {
 
     populateReassignmentSelect('reassignResponsible', item.responsible, true);
     populateReassignmentSelect('reassignAccountable', item.accountable, false);
-    document.getElementById('reassignMessage').textContent = '';
+    populateUpdateTeamSelect(item.team);
+    setSelectValue(document.getElementById('updatePriority'), item.priority);
+    document.getElementById('updateActionItem').value = item.actionItem || '';
+    document.getElementById('updateDeliverable').value = item.deliverable || '';
     document.getElementById('updateTargetId').value = item.id;
     document.getElementById('updateItemInfo').innerHTML = `
         <strong>${escapeHtml(item.id)}</strong> — ${escapeHtml(item.actionItem)}<br>
@@ -765,80 +835,27 @@ function openUpdateModal(id) {
 function populateReassignmentSelect(id, current, allowEveryone) {
     const select = document.getElementById(id);
     select.replaceChildren();
-    const groups = ['all', 'all team members', 'everyone', 'all teams'];
     const names = [...new Set([
         ...(allowEveryone ? ['All Team Members'] : []),
-        ...peopleStore.filter(p => !groups.includes(p.name.toLowerCase())).map(p => p.name),
+        ...peopleStore.filter(p => !GROUP_NAMES.includes(String(p.name).toLowerCase())).map(p => p.name),
         ...(current ? [current] : [])
     ])];
-    names.forEach(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        option.textContent = name;
-        select.appendChild(option);
-    });
+    names.forEach(name => select.appendChild(new Option(name, name)));
     select.value = current || '';
 }
 
-async function reassignAction() {
-    const id = document.getElementById('updateTargetId').value;
-    const item = actionsStore.find(a => a.id === id);
-    const responsible = document.getElementById('reassignResponsible').value;
-    const accountable = document.getElementById('reassignAccountable').value;
-    const message = document.getElementById('reassignMessage');
-    const button = document.getElementById('reassignButton');
-    if (!item || !responsible || !accountable) {
-        message.textContent = 'Choose both a responsible and an accountable person.';
-        return;
-    }
-    const assignment = {};
-    if (responsible !== item.responsible) assignment.responsible = responsible;
-    if (accountable !== item.accountable) assignment.accountable = accountable;
-    if (!Object.keys(assignment).length) {
-        message.textContent = 'The selected people are already assigned.';
-        return;
-    }
-    button.disabled = true;
-    message.textContent = 'Saving reassignment…';
-    try {
-        if (GOOGLE_SHEETS_WEB_APP_URL) {
-            await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
-                method: 'POST', mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-                body: JSON.stringify({ actionType: 'reassign', actionId: id, assignment })
-            });
-            // An opaque POST response is not proof that the sheet accepted the change.
-            const response = await fetch(GOOGLE_SHEETS_WEB_APP_URL);
-            const data = await response.json();
-            const saved = data.status === 'success' && data.actions?.find(a => a.id === id);
-            if (!saved || Object.keys(assignment).some(key => saved[key] !== assignment[key])) {
-                throw new Error('Reassignment could not be confirmed. Check the sheet and ensure the updated Code.gs is deployed before retrying.');
-            }
-            Object.assign(item, { responsible: saved.responsible, respEmail: saved.respEmail,
-                accountable: saved.accountable, accEmail: saved.accEmail });
-        } else {
-            const groups = ['all', 'all team members', 'everyone', 'all teams'];
-            if (assignment.responsible) {
-                item.responsible = responsible;
-                item.respEmail = groups.includes(responsible.toLowerCase())
-                    ? [...new Set(peopleStore.filter(p => !groups.includes(p.name.toLowerCase()) && p.email).map(p => p.email))].join(', ')
-                    : (peopleStore.find(p => p.name === responsible)?.email || '');
-            }
-            if (assignment.accountable) {
-                item.accountable = accountable;
-                item.accEmail = peopleStore.find(p => p.name === accountable)?.email || '';
-            }
-        }
+// Browser-only mode: change owners and look up their emails from the Team Directory.
+function applyAssignmentLocally(item, assignment) {
+    if (assignment.responsible) {
+        item.responsible = assignment.responsible;
+        item.respEmail = GROUP_NAMES.includes(assignment.responsible.toLowerCase())
+            ? [...new Set(peopleStore.filter(p => !GROUP_NAMES.includes(String(p.name).toLowerCase()) && p.email).map(p => p.email))].join(', ')
+            : (peopleStore.find(p => p.name === assignment.responsible)?.email || '');
         item.respRole = peopleStore.find(p => p.name === item.responsible)?.role || 'Member';
-        saveStore();
-        renderDashboard();
-        renderTable();
-        document.getElementById('updateItemInfo').textContent = `${item.id} — ${item.actionItem} | Responsible: ${item.responsible} | Accountable: ${item.accountable}`;
-        message.textContent = GOOGLE_SHEETS_WEB_APP_URL ? 'Reassignment confirmed in Google Sheets.' : 'Reassignment saved in this browser.';
-    } catch (error) {
-        message.textContent = error.message || 'Could not confirm reassignment. Check Google Sheets before retrying.';
-    } finally {
-        button.disabled = false;
+    }
+    if (assignment.accountable) {
+        item.accountable = assignment.accountable;
+        item.accEmail = peopleStore.find(p => p.name === assignment.accountable)?.email || '';
     }
 }
 
@@ -848,76 +865,112 @@ function toggleBlockerField() {
     blockerBox.style.display = (status === 'Blocked') ? 'flex' : 'none';
 }
 
+// One "Save Update" saves everything in the form: progress, action details and owners.
 async function handleUpdateActionSubmit(e) {
     e.preventDefault();
     const id = document.getElementById('updateTargetId').value;
     const item = actionsStore.find(a => a.id === id);
     if (!item) return;
 
-    const newStatus = document.getElementById('updateStatus').value;
-    let newPct = Math.min(100, Math.max(0, parseInt(document.getElementById('updatePct').value, 10) || 0));
+    const field = fieldId => document.getElementById(fieldId).value;
+    const sameText = (a, b) => String(a ?? '').trim() === String(b ?? '').trim();
 
-    if (newStatus === 'Completed') {
-        newPct = 100;
+    const status = field('updateStatus');
+    const update = {
+        status,
+        pctComplete: status === 'Completed' ? 100 : Math.min(100, Math.max(0, parseInt(field('updatePct'), 10) || 0)),
+        latestUpdate: field('updateProgress'),
+        blocker: field('updateBlocker'),
+        dueDate: field('updateDueDate') || item.dueDate,
+        link: field('updateLink')
+    };
+
+    // Only send the details and owners that actually changed.
+    const details = {};
+    const actionText = field('updateActionItem').trim();
+    if (!actionText) {
+        alert('⚠️ The action item text cannot be empty.');
+        return;
     }
+    if (!sameText(actionText, item.actionItem)) details.actionItem = actionText;
+    const deliverable = field('updateDeliverable').trim();
+    if (!sameText(deliverable, item.deliverable)) details.deliverable = deliverable;
+    const team = field('updateTeam');
+    if (team && normalizeTeam(team) !== normalizeTeam(item.team)) details.team = team;
+    const priority = field('updatePriority');
+    if (priority && priority !== item.priority) details.priority = priority;
 
-    item.status = newStatus;
-    item.pctComplete = newPct;
-    item.latestUpdate = document.getElementById('updateProgress').value;
-    item.blocker = document.getElementById('updateBlocker').value;
-    if (document.getElementById('updateDueDate').value) {
-        item.dueDate = document.getElementById('updateDueDate').value;
-    }
-    item.link = document.getElementById('updateLink').value;
-    item.lastUpdated = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const assignment = {};
+    const responsible = field('reassignResponsible');
+    const accountable = field('reassignAccountable');
+    if (responsible && responsible !== item.responsible) assignment.responsible = responsible;
+    if (accountable && accountable !== item.accountable) assignment.accountable = accountable;
 
-    item.health = calculateHealth(item);
-    item.daysRemaining = calculateDaysRemaining(item);
-
-    saveStore();
-    closeModal('updateActionModal');
-    renderDashboard();
-    renderTable();
-
-    if (GOOGLE_SHEETS_WEB_APP_URL) {
-        try {
-            await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
-                method: "POST",
-                mode: "no-cors",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    actionType: "update",
-                    values: [
-                        "web_user@example.org",
-                        item.id,
-                        item.status,
-                        // Sheet stores progress as a fraction (0.5 = 50%). Sending a fraction
-                        // as a string keeps 1% and 0% from being misread by the script.
-                        String(item.pctComplete / 100),
-                        item.latestUpdate,
-                        item.blocker,
-                        item.dueDate,
-                        item.link
-                    ]
-                })
-            });
-        } catch (e) { console.warn("Failed to post update to Google Sheets API:", e); }
-
-        // Reload from the sheet so the page shows what was really saved. If the new
-        // status did not reach the sheet, say so instead of claiming success.
-        if (await fetchFromGoogleSheets()) {
-            const saved = actionsStore.find(a => a.id === id);
-            if (!saved || saved.status !== newStatus) {
-                alert(`⚠️ ${id} was not updated in Google Sheets (it still shows "${saved ? saved.status : 'missing'}"). Please try again or check the sheet.`);
-                return;
-            }
+    const submitButton = e.submitter || document.querySelector('#updateActionForm button[type="submit"]');
+    submitButton.disabled = true;
+    try {
+        if (GOOGLE_SHEETS_WEB_APP_URL) {
+            await saveUpdateToSheet(id, update, details, assignment);
         } else {
-            alert(`⚠️ ${id} was updated in this browser, but Google Sheets could not be reached to confirm it.`);
-            return;
+            Object.assign(item, update, details);
+            applyAssignmentLocally(item, assignment);
+            item.lastUpdated = new Date().toISOString().replace('T', ' ').substring(0, 19);
+            item.health = calculateHealth(item);
+            item.daysRemaining = calculateDaysRemaining(item);
+            saveStore();
         }
+        closeModal('updateActionModal');
+        renderDashboard();
+        renderTable();
+        alert(`✅ Action Item ${id} Updated Successfully!`);
+    } catch (err) {
+        // Keep the form open so nothing typed is lost.
+        alert(`⚠️ ${err.message}`);
+    } finally {
+        submitButton.disabled = false;
     }
+}
 
-    alert(`✅ Action Item ${id} Updated Successfully!`);
+// Save to Google Sheets, then re-read the sheet and check every requested change landed.
+async function saveUpdateToSheet(id, update, details, assignment) {
+    await postToSheet({
+        actionType: 'update',
+        actionId: id,
+        values: [
+            'web_user@example.org',
+            id,
+            update.status,
+            // Sheet stores progress as a fraction (0.5 = 50%). Sending a fraction
+            // as a string keeps 1% and 0% from being misread by the script.
+            String(update.pctComplete / 100),
+            update.latestUpdate,
+            update.blocker,
+            update.dueDate,
+            update.link
+        ],
+        details,
+        assignment
+    });
+
+    if (!(await fetchFromGoogleSheets())) {
+        throw new Error(`${id} was sent, but Google Sheets could not be reached to confirm it. Refresh the page to check.`);
+    }
+    const saved = actionsStore.find(a => a.id === id);
+    if (!saved) throw new Error(`${id} was not found in Google Sheets after saving.`);
+
+    const same = (a, b) => String(a ?? '').trim() === String(b ?? '').trim();
+    const notSaved = [];
+    if (saved.status !== update.status) notSaved.push('status');
+    if ('actionItem' in details && !same(saved.actionItem, details.actionItem)) notSaved.push('action item');
+    if ('deliverable' in details && !same(saved.deliverable, details.deliverable)) notSaved.push('deliverable');
+    if ('team' in details && normalizeTeam(saved.team) !== normalizeTeam(details.team)) notSaved.push('team');
+    if ('priority' in details && saved.priority !== details.priority) notSaved.push('priority');
+    if ('responsible' in assignment && !same(saved.responsible, assignment.responsible)) notSaved.push('responsible person');
+    if ('accountable' in assignment && !same(saved.accountable, assignment.accountable)) notSaved.push('accountable person');
+    if (notSaved.length) {
+        throw new Error(`${id} was not fully saved in Google Sheets (${notSaved.join(', ')} did not change). ` +
+            'Make sure the latest Code.gs is deployed as a new version of the web app, then try again.');
+    }
 }
 
 function openModal(modalId) {

@@ -38,19 +38,32 @@ function sendPersonalizedEmailDigests() {
 
   const peopleData = peopleSheet.getDataRange().getValues();
   let sentCount = 0;
+  let failedCount = 0;
 
   for (let i = 1; i < peopleData.length; i++) {
     const personName = peopleData[i][0];
-    const email = peopleData[i][2] || peopleData[i][1];
     const active = peopleData[i][4];
 
-    if (!personName || !email || active === false) continue;
+    // Skip blank/inactive rows and the "All Team Members" group row.
+    if (!personName || active === false || isTeamWideName_(personName)) continue;
+
+    // Only real addresses (not example.org placeholders) are emailed.
+    const email = cleanRecipients_(peopleData[i][2]).valid[0];
+    if (!email) {
+      Logger.log("Skipping digest for " + personName + ": no real email in the People tab (" + (peopleData[i][2] || "blank") + ").");
+      continue;
+    }
 
     const res = generateAndSendDigestForPerson(personName, email, false);
     if (res.success && res.taskCount > 0) sentCount++;
+    if (!res.success) {
+      failedCount++;
+      Logger.log("❌ Digest for " + personName + " failed: " + res.error);
+      logReminder(new Date(), "-", "Personal Digest", personName, email, "Failed", res.error);
+    }
   }
 
-  Logger.log("✅ Sent personalized email digests to " + sentCount + " team members.");
+  Logger.log("✅ Sent personalized email digests to " + sentCount + " team members" + (failedCount ? ", " + failedCount + " failed (see Reminder Log)." : "."));
 }
 
 /**
@@ -79,8 +92,8 @@ function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
       const respEmail = (row[10] || "").toString().trim().toLowerCase();
       const accName = (row[11] || "").toString().trim().toLowerCase();
       const accEmail = (row[12] || "").toString().trim().toLowerCase();
-      const status = (row[16] || "").toString().trim();
-      const pctVal = parseFloat(row[17] || 0);
+      const status = canonicalStatus_(row[16]);
+      const pctVal = parseFloat(row[17] || 0) || 0;
 
       // 1. RULE: STRICT EXCLUSION OF COMPLETED / CANCELLED TASKS!
       if (status === "Completed" || status === "Cancelled" || pctVal >= 1.0) {
@@ -90,20 +103,19 @@ function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
       // 2. RULE: STRICT MATCH BY NAME OR EMAIL
       let isMatch = false;
 
-      // Check Name match (e.g. "Marius", "Ambe Marius", "Arthur", etc.)
-      if (nameSearch && (respName.includes(nameSearch) || accName.includes(nameSearch) || nameSearch.includes(respName))) {
+      // Name match (e.g. "Marius" also matches "Ambe Marius"). Blank cells never match.
+      const nameMatches = cell => !!cell && !!nameSearch && (cell === nameSearch || cell.includes(nameSearch) || nameSearch.includes(cell));
+      if (nameMatches(respName) || nameMatches(accName)) {
         isMatch = true;
       }
 
-      // Check Email match (e.g. "ambengwa48@gmail.com", "marius@example.org")
+      // Email match (the Responsible Email cell can hold several addresses)
       if (emailSearch && (respEmail.includes(emailSearch) || accEmail.includes(emailSearch))) {
         isMatch = true;
       }
 
-      // Check if task is assigned to "All", "All Team Members", or "Everyone" -> applies to ALL organization members!
-      const isTeamWide = (respName === "all" || respName === "all team members" || respName === "everyone" || 
-                          accName === "all" || accName === "all team members" || accName === "everyone");
-      if (isTeamWide) {
+      // Tasks for "All", "All Team Members" or "Everyone" apply to every member.
+      if (isTeamWideName_(respName) || isTeamWideName_(accName)) {
         isMatch = true;
       }
 
@@ -124,7 +136,7 @@ function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
           responsible: row[9],
           accountable: row[11],
           dueDate: formatDateStr(row[15]),
-          status: row[16] || "Not Started",
+          status: status,
           pctComplete: Math.round(pctVal * 100),
           health: row[18] || "On Track",
           daysRemaining: row[19],
@@ -150,6 +162,10 @@ function generateAndSendDigestForPerson(personName, recipientEmail, isTest) {
 
     const htmlBody = buildHtmlEmailBody(personName, userTasks, totalOutstanding, inProgress, overdue, blocked, notStarted);
     const textBody = `Hello ${personName},\n\nHere is your THRIVE Outstanding Action Items Digest.\nTotal Outstanding: ${totalOutstanding} | In Progress: ${inProgress} | Overdue: ${overdue} | Blocked: ${blocked}\n\nPlease check your email viewer for your personalized dashboard.`;
+
+    if (MailApp.getRemainingDailyQuota() < 1) {
+      return { success: false, taskCount: totalOutstanding, error: "Daily email quota reached. Try again tomorrow." };
+    }
 
     MailApp.sendEmail({
       to: recipientEmail,
@@ -181,22 +197,22 @@ function buildHtmlEmailBody(name, tasks, total, inProgress, overdue, blocked, no
 
       return `
         <tr style="border-bottom: 1px solid #1E293B;">
-          <td style="padding: 12px 10px; font-family: monospace; font-weight: bold; color: #818CF8;">${t.id}</td>
+          <td style="padding: 12px 10px; font-family: monospace; font-weight: bold; color: #818CF8;">${escapeHtmlStr(t.id)}</td>
           <td style="padding: 12px 10px; color: #F8FAFC;">
             <strong>${escapeHtmlStr(t.actionItem)}</strong>
             ${t.blocker ? `<br><small style="color:#EF4444;">⚠️ Blocker: ${escapeHtmlStr(t.blocker)}</small>` : ''}
-            ${t.link ? `<br><a href="${t.link}" style="color:#6366F1; font-size:12px; text-decoration:underline;">🔗 Working Document</a>` : ''}
+            ${/^https?:\/\//i.test(String(t.link || '')) ? `<br><a href="${escapeHtmlStr(t.link)}" style="color:#6366F1; font-size:12px; text-decoration:underline;">🔗 Working Document</a>` : ''}
           </td>
-          <td style="padding: 12px 10px; color: #94A3B8; font-size: 13px;">${t.team}</td>
+          <td style="padding: 12px 10px; color: #94A3B8; font-size: 13px;">${escapeHtmlStr(t.team)}</td>
           <td style="padding: 12px 10px;">
-            <span style="background: ${prioBg}; color: #FFFFFF; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">${t.priority}</span>
+            <span style="background: ${prioBg}; color: #FFFFFF; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">${escapeHtmlStr(t.priority)}</span>
           </td>
-          <td style="padding: 12px 10px; color: #CBD5E1; font-size: 13px;">${t.dueDate}</td>
+          <td style="padding: 12px 10px; color: #CBD5E1; font-size: 13px;">${escapeHtmlStr(t.dueDate)}</td>
           <td style="padding: 12px 10px;">
-            <span style="background: ${statusBg}; color: ${statusTextColor}; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold;">${t.status} (${t.pctComplete}%)</span>
+            <span style="background: ${statusBg}; color: ${statusTextColor}; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold;">${escapeHtmlStr(t.status)} (${t.pctComplete}%)</span>
           </td>
           <td style="padding: 12px 10px;">
-            <span style="color: ${healthColor}; font-weight: bold; font-size: 13px;">${t.health}</span>
+            <span style="color: ${healthColor}; font-weight: bold; font-size: 13px;">${escapeHtmlStr(t.health)}</span>
           </td>
         </tr>
       `;
@@ -284,7 +300,7 @@ function buildHtmlEmailBody(name, tasks, total, inProgress, overdue, blocked, no
               <!-- CTA Footer Buttons -->
               <tr>
                 <td style="background: #0F172A; padding: 20px 30px; text-align: center; border-top: 1px solid #1E293B;">
-                  <a href="https://ambemarius.github.io/action-item-tracker../" target="_blank" style="background: linear-gradient(135deg, #6366F1, #8B5CF6); color: #FFFFFF; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 12px rgba(99,102,241,0.4);">
+                  <a href="${escapeHtmlStr(getSetting("Dashboard URL", "https://ambemarius.github.io/action-item-tracker./"))}" target="_blank" style="background: linear-gradient(135deg, #6366F1, #8B5CF6); color: #FFFFFF; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 12px rgba(99,102,241,0.4);">
                     🌐 Open Interactive Dashboard
                   </a>
                   <p style="margin: 15px 0 0 0; color: #64748B; font-size: 12px;">Automated Notification System • THRIVE Executive Command Center</p>
@@ -347,5 +363,5 @@ function formatDateStr(d) {
 }
 
 function escapeHtmlStr(str) {
-  return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return String(str ?? '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }

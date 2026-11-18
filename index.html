@@ -376,18 +376,46 @@
                     <div class="info-banner" id="updateItemInfo"></div>
 
                     <fieldset class="reassignment-fields">
-                        <legend>Reassign action</legend>
+                        <legend>Action details</legend>
                         <div class="form-group">
-                            <label for="reassignResponsible">Responsible Person</label>
-                            <select id="reassignResponsible"></select>
+                            <label for="updateActionItem">Action Item <span class="required">*</span></label>
+                            <textarea id="updateActionItem" rows="3" required></textarea>
                         </div>
                         <div class="form-group">
-                            <label for="reassignAccountable">Accountable Person</label>
-                            <select id="reassignAccountable"></select>
+                            <label for="updateDeliverable">Expected Deliverable</label>
+                            <textarea id="updateDeliverable" rows="2"></textarea>
                         </div>
-                        <button type="button" id="reassignButton" class="btn btn-secondary" onclick="reassignAction()">Save Reassignment</button>
-                        <small>Reassignment saves separately from progress updates.</small>
-                        <p id="reassignMessage" role="status" aria-live="polite"></p>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="updateTeam">Core Team</label>
+                                <!-- Options are built from real team names (see populateUpdateTeamSelect in app.js) -->
+                                <select id="updateTeam"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="updatePriority">Priority</label>
+                                <select id="updatePriority">
+                                    <option value="Critical">Critical</option>
+                                    <option value="High">High</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Low">Low</option>
+                                </select>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="reassignment-fields">
+                        <legend>Assigned people</legend>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="reassignResponsible">Responsible Person</label>
+                                <select id="reassignResponsible"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="reassignAccountable">Accountable Person</label>
+                                <select id="reassignAccountable"></select>
+                            </div>
+                        </div>
+                        <small>Changes here are saved together with the rest of the update.</small>
                     </fieldset>
 
                     <div class="form-row">

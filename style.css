@@ -853,7 +853,7 @@ body {
     .modal-header h3 { font-size: 15px; }
     .info-banner { font-size: 13px; line-height: 1.5; }
     .reassignment-fields legend { font-size: 14px; }
-    .reassignment-fields small, #reassignMessage { font-size: 12px; }
+    .reassignment-fields small { font-size: 12px; }
     .modal-body .btn, .modal-footer .btn { font-size: 13px; }
     .form-row { grid-template-columns: minmax(0, 1fr); }
     .form-group { min-width: 0; }
@@ -864,7 +864,7 @@ body {
 }
 .reassignment-fields { display: flex; flex-direction: column; gap: 12px; min-width: 0; border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; }
 .reassignment-fields legend { padding: 0 6px; }
-.reassignment-fields small, #reassignMessage { color: var(--text-secondary); }
+.reassignment-fields small { color: var(--text-secondary); }
 
 .tab-content { display: none; }
 .tab-content.active { display: block; }

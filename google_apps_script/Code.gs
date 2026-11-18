@@ -78,10 +78,21 @@ function doGet(e) {
       }
     }
 
+    // Fetch Teams (column A = name, column B = Active Status)
+    const teamsSheet = ss.getSheetByName("Teams");
+    const teams = [];
+    if (teamsSheet && teamsSheet.getLastRow() > 1) {
+      teamsSheet.getRange(2, 1, teamsSheet.getLastRow() - 1, 2).getValues().forEach(row => {
+        const name = String(row[0] || "").trim();
+        if (name && row[1] !== false) teams.push(name);
+      });
+    }
+
     const payload = {
       status: "success",
       actions: actions,
-      people: people
+      people: people,
+      teams: teams
     };
 
     return ContentService.createTextOutput(JSON.stringify(payload))
@@ -109,7 +120,7 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Created new Action Item" }))
         .setMimeType(ContentService.MimeType.JSON);
     } else if (actionType === "update") {
-      onUpdateSubmit({ values: postData.values });
+      applyWebUpdate(postData);
       return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Updated Action Item" }))
         .setMimeType(ContentService.MimeType.JSON);
     }
@@ -126,35 +137,149 @@ function doPost(e) {
 // CORE APPS SCRIPT LOGIC
 // --------------------------------------------------------------------------
 
-// Reassignment deliberately writes only owner cells, never an entire row.
+const TRACKER_PRIORITIES = ["Critical", "High", "Medium", "Low"];
+const GROUP_NAMES = ["all", "all team members", "everyone", "all teams"];
+
+function hasKey_(obj, key) {
+  return !!obj && Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+// Row number of the one row whose Action ID matches (ignoring case and spaces).
+function findSingleActionRow_(sheet, actionId) {
+  const id = String(actionId || "").trim().toUpperCase();
+  if (!id) throw new Error("Action ID is required.");
+  const lastRow = sheet.getLastRow();
+  const ids = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 1).getValues() : [];
+  const rows = [];
+  ids.forEach((r, i) => { if (String(r[0]).trim().toUpperCase() === id) rows.push(i + 2); });
+  if (rows.length === 0) throw new Error("Action " + actionId + " was not found in the sheet.");
+  if (rows.length > 1) throw new Error("Action ID " + actionId + " appears " + rows.length + " times in the sheet. Fix the duplicate IDs first.");
+  return rows[0];
+}
+
+// Writes only the listed cells; every other cell in the row is left untouched.
+function writeCells_(sheet, rowNumber, writes) {
+  writes.forEach(w => sheet.getRange(rowNumber, w.column, 1, w.values[0].length).setValues(w.values));
+}
+
+function normalizeTeam_(team) {
+  return String(team || "").trim().replace(/&/g, " and ").replace(/\s+/g, " ").toLowerCase();
+}
+
+// Returns the team's spelling from the Teams sheet, or null if it is not listed.
+function findTeamName_(team) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Teams");
+  const key = normalizeTeam_(team);
+  if (!sheet || !key || sheet.getLastRow() < 2) return null;
+  const names = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+  for (let i = 0; i < names.length; i++) {
+    if (normalizeTeam_(names[i][0]) === key) return String(names[i][0]).trim();
+  }
+  return null;
+}
+
+// Web app "update": validates every requested change first, then writes only the
+// affected cells, then applies the progress update (status, %, notes, due date, link).
+function applyWebUpdate(postData) {
+  const values = (postData.values || []).slice();
+  const actionId = String(postData.actionId || values[1] || "").trim();
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Action Tracker");
+  const rowNumber = findSingleActionRow_(sheet, actionId);
+
+  const assignment = postData.assignment || {};
+  const writes = prepareDetailWrites_(postData.details)
+    .concat(Object.keys(assignment).length ? prepareAssignmentWrites_(assignment) : []);
+
+  writeCells_(sheet, rowNumber, writes);
+  values[1] = actionId;
+  onUpdateSubmit({ values: values });
+}
+
+// Action Item (F), Expected Deliverable (G), Core Team (H), Priority (I).
+function prepareDetailWrites_(details) {
+  const writes = [];
+  if (!details) return writes;
+  if (hasKey_(details, "actionItem")) {
+    const text = String(details.actionItem || "").trim();
+    if (!text) throw new Error("The action item text cannot be empty.");
+    writes.push({ column: 6, values: [[text]] });
+  }
+  if (hasKey_(details, "deliverable")) {
+    writes.push({ column: 7, values: [[String(details.deliverable || "").trim()]] });
+  }
+  if (hasKey_(details, "team")) {
+    const team = findTeamName_(details.team);
+    if (!team) throw new Error('Team "' + details.team + '" is not in the Teams sheet. Add it to the Teams tab first.');
+    writes.push({ column: 8, values: [[team]] });
+  }
+  if (hasKey_(details, "priority")) {
+    const wanted = String(details.priority || "").trim().toLowerCase();
+    const priority = TRACKER_PRIORITIES.find(p => p.toLowerCase() === wanted);
+    if (!priority) throw new Error('Priority must be one of: ' + TRACKER_PRIORITIES.join(", ") + ".");
+    writes.push({ column: 9, values: [[priority]] });
+  }
+  return writes;
+}
+
+// Responsible Person + Email (J:K) and Accountable Person + Email (L:M).
+// Both owners are validated before anything is written.
+function prepareAssignmentWrites_(assignment) {
+  const peopleSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("People");
+  if (!peopleSheet) throw new Error('No "People" sheet found.');
+  const people = peopleSheet.getDataRange().getValues().slice(1);
+  const isActive = p => p[4] !== false && String(p[4]).trim().toUpperCase() !== "FALSE";
+  const changes = [];
+  ["responsible", "accountable"].forEach(key => {
+    if (!hasKey_(assignment, key)) return;
+    const name = String(assignment[key] || "").trim();
+    const everyone = key === "responsible" && GROUP_NAMES.includes(name.toLowerCase());
+    const person = people.find(p => String(p[0]).trim().toLowerCase() === name.toLowerCase() && isActive(p));
+    if (!name || (!everyone && !person)) {
+      throw new Error('"' + name + '" is not an active person in the Google Sheets People tab.');
+    }
+    const email = everyone
+      ? [...new Set(people.filter(p => isActive(p) && p[2] && !GROUP_NAMES.includes(String(p[0]).trim().toLowerCase())).map(p => String(p[2]).trim()))].join(", ")
+      : String(person[2] || "").trim();
+    if (!email) throw new Error('"' + name + '" needs an email address in the People tab.');
+    const savedName = everyone ? name : String(person[0]).trim();
+    changes.push({ column: key === "responsible" ? 10 : 12, values: [[savedName, email]] });
+  });
+  return changes;
+}
+
+// Kept for older versions of the web page that still send "reassign" on its own.
 function reassignActionOwners(actionId, assignment) {
   if (!actionId || !assignment) throw new Error("Action ID and assignment are required.");
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName("Action Tracker");
-  const people = ss.getSheetByName("People").getDataRange().getValues().slice(1);
-  const rows = sheet.getDataRange().getValues();
-  const matches = [];
-  for (let i = 1; i < rows.length; i++) {
-    if (String(rows[i][0]).trim() === String(actionId).trim()) matches.push(i + 1);
-  }
-  if (matches.length !== 1) throw new Error("Action ID must identify exactly one existing action.");
-  const changes = [];
-  ['responsible', 'accountable'].forEach(key => {
-    if (!Object.prototype.hasOwnProperty.call(assignment, key)) return;
-    const name = typeof assignment[key] === 'string' ? assignment[key].trim() : '';
-    const allNames = ['all', 'all team members', 'everyone', 'all teams'];
-    const everyone = key === 'responsible' && allNames.includes(name.toLowerCase());
-    const person = people.find(p => String(p[0]).trim() === name && p[4] !== false);
-    if (!name || (!everyone && !person)) throw new Error("Select an active person from the Google Sheets People directory.");
-    const email = everyone
-      ? [...new Set(people.filter(p => p[4] !== false && p[2] && !allNames.includes(String(p[0]).trim().toLowerCase())).map(p => String(p[2]).trim()))].join(', ')
-      : String(person[2] || '').trim();
-    if (!email) throw new Error("The selected person needs an email in the People directory.");
-    changes.push({ column: key === 'responsible' ? 10 : 12, values: [[name, email]] });
-  });
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Action Tracker");
+  const rowNumber = findSingleActionRow_(sheet, actionId);
+  const changes = prepareAssignmentWrites_(assignment);
   if (!changes.length) throw new Error("No reassignment supplied.");
-  // Validate both owners before performing any writes. Preserve all other cells.
-  changes.forEach(change => sheet.getRange(matches[0], change.column, 1, 2).setValues(change.values));
+  writeCells_(sheet, rowNumber, changes);
+}
+
+/**
+ * RUN ONCE from the Apps Script editor to add the "Office Operation" team.
+ * Safe on live data: it only adds one row to the Teams tab (if it is not
+ * already there) and changes nothing else.
+ */
+function addOfficeOperationTeam() {
+  const added = ensureTeam_("Office Operation");
+  Logger.log(added ? '✅ Added "Office Operation" to the Teams tab.' : 'ℹ️ "Office Operation" is already in the Teams tab. Nothing changed.');
+}
+
+function ensureTeam_(name) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Teams");
+  if (!sheet) throw new Error('No "Teams" sheet found.');
+  if (findTeamName_(name)) return false;
+  // Write after the last filled cell in column A (not getLastRow, which can
+  // point far down if column B has checkboxes).
+  const colA = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 1).getValues();
+  let lastFilled = 1;
+  colA.forEach((r, i) => { if (String(r[0]).trim()) lastFilled = i + 1; });
+  const row = lastFilled + 1;
+  sheet.getRange(row, 1, 1, 2).setValues([[name, true]]);
+  if (row > 50) Logger.log("⚠️ Team was added on row " + row + ", but the Action Tracker team dropdown only reads Teams!A2:A50. Extend that range.");
+  return true;
 }
 
 function getSetting(key, defaultValue) {
@@ -415,10 +540,75 @@ function calculateDaysRemaining(dueDate, status) {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
+// --------------------------------------------------------------------------
+// AUTOMATED EMAILS
+// --------------------------------------------------------------------------
+
+const TRACKER_STATUSES = ["Not Started", "In Progress", "Blocked", "Completed", "On Hold", "Cancelled"];
+const STATUS_ALIASES = { complete: "Completed", done: "Completed", closed: "Completed", canceled: "Cancelled" };
+// Handlers that installTriggers() manages. Other triggers in the project are never touched.
+const MANAGED_TRIGGERS = ["sendDailyReminders", "sendPersonalizedEmailDigests"];
+
+// Map a status to its standard spelling, ignoring case and extra spaces.
+function canonicalStatus_(status) {
+  const key = String(status || "").trim().replace(/\s+/g, " ").toLowerCase();
+  if (!key) return "Not Started";
+  return STATUS_ALIASES[key] || TRACKER_STATUSES.find(s => s.toLowerCase() === key) || String(status).trim();
+}
+
+function isTeamWideName_(name) {
+  return GROUP_NAMES.includes(String(name || "").trim().toLowerCase());
+}
+
+// A date cell as a midnight Date, or null if empty/invalid.
+function toDate_(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+// Split "a@x, b@y; c@z" into unique, valid addresses. Placeholder addresses
+// (example.org / example.com) are returned separately so they are never emailed.
+function cleanRecipients_(value) {
+  const valid = [];
+  const placeholders = [];
+  const seen = {};
+  String(value || "").split(/[,;]/).forEach(raw => {
+    const email = raw.trim();
+    const key = email.toLowerCase();
+    if (!email || seen[key]) return;
+    seen[key] = true;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    if (/@example\.(org|com|net)$/i.test(email)) placeholders.push(email);
+    else valid.push(email);
+  });
+  return { valid: valid, placeholders: placeholders };
+}
+
+// "All Team Members" always expands to every active person, never the placeholder
+// address stored for that row. Otherwise use the email in the row, then the People tab.
+function resolveEmail_(personName, storedEmail) {
+  if (isTeamWideName_(personName)) return getPersonEmail(personName);
+  return storedEmail || getPersonEmail(personName);
+}
+
+/** Time-driven trigger entry point. Sends today's reminders. */
 function sendDailyReminders() {
+  return runDailyReminders_(false);
+}
+
+/** Run from the editor: lists the reminders that WOULD be sent today, sends nothing. */
+function previewTodaysReminders() {
+  return runDailyReminders_(true);
+}
+
+function runDailyReminders_(dryRun) {
+  const summary = { sent: 0, failed: 0, skipped: 0, preview: 0, noDueDate: 0, quotaStop: false };
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Action Tracker");
-  if (!sheet || sheet.getLastRow() <= 1) return;
+  if (!sheet || sheet.getLastRow() <= 1) return summary;
 
   const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 28).getValues();
   const today = new Date();
@@ -435,58 +625,61 @@ function sendDailyReminders() {
     const rowIndex = i + 2;
 
     const actionId = row[0];
+    if (!actionId) continue;
     const actionItem = row[5];
     const deliverable = row[6];
     const priority = row[8];
     const respPerson = row[9];
-    const respEmail = row[10] || getPersonEmail(respPerson);
+    const respEmail = resolveEmail_(respPerson, row[10]);
     const accPerson = row[11];
-    const accEmail = row[12] || getPersonEmail(accPerson);
-    const startDate = new Date(row[14]);
-    const dueDate = new Date(row[15]);
-    const status = row[16];
-    const lastReminderDate = row[26] ? new Date(row[26]) : null;
+    const accEmail = resolveEmail_(accPerson, row[12]);
+    const status = canonicalStatus_(row[16]);
+    const lastReminderDate = toDate_(row[26]);
 
     if (status === "Completed" || status === "Cancelled") continue;
 
-    startDate.setHours(0, 0, 0, 0);
-    dueDate.setHours(0, 0, 0, 0);
-
-    const daysRemaining = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    const daysOverdue = -daysRemaining;
-
-    if (lastReminderDate) {
-      const lastSentClean = new Date(lastReminderDate);
-      lastSentClean.setHours(0, 0, 0, 0);
-      if (lastSentClean.getTime() === today.getTime()) continue;
+    const dueDate = toDate_(row[15]);
+    const startDate = toDate_(row[14]);
+    if (!dueDate) {
+      summary.noDueDate++;
+      Logger.log("Skipped " + actionId + ": no valid Due Date.");
+      continue;
     }
 
-    const isTeamWide = (respPerson && (respPerson.toString().toLowerCase() === "all" || respPerson.toString().toLowerCase() === "all team members" || respPerson.toString().toLowerCase() === "everyone"));
+    // At most one reminder per action per day.
+    if (lastReminderDate && lastReminderDate.getTime() === today.getTime()) continue;
+
+    const daysRemaining = Math.round((dueDate.getTime() - today.getTime()) / 86400000);
+    const daysOverdue = -daysRemaining;
+
+    const isTeamWide = isTeamWideName_(respPerson);
     const greetingName = isTeamWide ? "Team (All Organization Members)" : respPerson;
+    const teamTag = isTeamWide ? "(All Team Members) " : "";
 
-    if (startDate.getTime() === today.getTime() && status === "Not Started") {
-      if (respEmail) {
-        const subject = `Action Item Starting Today ${isTeamWide ? '(All Team Members) ' : ''}— ${actionId}`;
-        const body = `Hello ${greetingName},\n\nThis is a reminder that the following action item is scheduled to start today.\n\nAction ID: ${actionId}\nAction: ${actionItem}\nExpected Deliverable: ${deliverable}\nPriority: ${priority}\nResponsible: ${respPerson}\nAccountable: ${accPerson}\nStart Date: ${formatDate(startDate)}\nDue Date: ${formatDate(dueDate)}\nCurrent Status: ${status}\n\nPlease begin the activity and update the action item when work starts.\n\n${orgName} Action Item Tracker`;
-        sendEmailAndLog(respEmail, subject, body, actionId, "Start Reminder", respPerson, sheet, rowIndex, "Start Reminder");
-      }
+    let message = null;
+
+    if (startDate && startDate.getTime() === today.getTime() && status === "Not Started") {
+      message = {
+        to: respEmail, type: "Start Reminder",
+        subject: `Action Item Starting Today ${teamTag}— ${actionId}`,
+        body: `Hello ${greetingName},\n\nThis is a reminder that the following action item is scheduled to start today.\n\nAction ID: ${actionId}\nAction: ${actionItem}\nExpected Deliverable: ${deliverable}\nPriority: ${priority}\nResponsible: ${respPerson}\nAccountable: ${accPerson}\nStart Date: ${formatDate(startDate)}\nDue Date: ${formatDate(dueDate)}\nCurrent Status: ${status}\n\nPlease begin the activity and update the action item when work starts.\n\n${orgName} Action Item Tracker`
+      };
     } else if (daysRemaining > 0 && daysRemaining <= dueSoonDays) {
-      if (respEmail) {
-        const urgency = daysRemaining === 1 ? "Due Tomorrow" : `Due in ${daysRemaining} Days`;
-        const subject = `Action Item ${urgency} ${isTeamWide ? '(All Team Members) ' : ''}— ${actionId}`;
-        const body = `Hello ${greetingName},\n\nThis is a reminder that your action item is ${urgency.toLowerCase()}.\n\nAction ID: ${actionId}\nAction: ${actionItem}\nExpected Deliverable: ${deliverable}\nPriority: ${priority}\nResponsible: ${respPerson}\nAccountable: ${accPerson}\nDue Date: ${formatDate(dueDate)}\nDays Remaining: ${daysRemaining}\nCurrent Status: ${status}\n\nPlease submit updates if there are changes.\n\n${orgName} Action Item Tracker`;
-        sendEmailAndLog(respEmail, subject, body, actionId, "Due Soon", respPerson, sheet, rowIndex, "Due Soon");
-      }
+      const urgency = daysRemaining === 1 ? "Due Tomorrow" : `Due in ${daysRemaining} Days`;
+      message = {
+        to: respEmail, type: "Due Soon",
+        subject: `Action Item ${urgency} ${teamTag}— ${actionId}`,
+        body: `Hello ${greetingName},\n\nThis is a reminder that your action item is ${urgency.toLowerCase()}.\n\nAction ID: ${actionId}\nAction: ${actionItem}\nExpected Deliverable: ${deliverable}\nPriority: ${priority}\nResponsible: ${respPerson}\nAccountable: ${accPerson}\nDue Date: ${formatDate(dueDate)}\nDays Remaining: ${daysRemaining}\nCurrent Status: ${status}\n\nPlease submit updates if there are changes.\n\n${orgName} Action Item Tracker`
+      };
     } else if (daysRemaining === 0) {
-      if (respEmail) {
-        const subject = `URGENT: Action Item Due Today ${isTeamWide ? '(All Team Members) ' : ''}— ${actionId}`;
-        const body = `Hello ${greetingName},\n\nYOUR ACTION ITEM IS DUE TODAY.\n\nAction ID: ${actionId}\nAction: ${actionItem}\nExpected Deliverable: ${deliverable}\nPriority: ${priority}\nResponsible: ${respPerson}\nAccountable: ${accPerson}\nDue Date: ${formatDate(dueDate)}\n\nPlease finalize and complete this item today.\n\n${orgName} Action Item Tracker`;
-        sendEmailAndLog(respEmail, subject, body, actionId, "Due Today", respPerson, sheet, rowIndex, "Due Today");
-      }
+      message = {
+        to: respEmail, type: "Due Today",
+        subject: `URGENT: Action Item Due Today ${teamTag}— ${actionId}`,
+        body: `Hello ${greetingName},\n\nYOUR ACTION ITEM IS DUE TODAY.\n\nAction ID: ${actionId}\nAction: ${actionItem}\nExpected Deliverable: ${deliverable}\nPriority: ${priority}\nResponsible: ${respPerson}\nAccountable: ${accPerson}\nDue Date: ${formatDate(dueDate)}\n\nPlease finalize and complete this item today.\n\n${orgName} Action Item Tracker`
+      };
     } else if (daysRemaining < 0) {
-      let recipients = [respEmail];
+      const recipients = [respEmail];
       let escalationStage = "Overdue Level 1";
-
       if (daysOverdue >= esc2Days && mgmtEmail) {
         recipients.push(accEmail, mgmtEmail);
         escalationStage = "Level 2 Escalation (Management)";
@@ -494,15 +687,25 @@ function sendDailyReminders() {
         recipients.push(accEmail);
         escalationStage = "Level 1 Escalation (Accountable)";
       }
+      message = {
+        to: recipients.filter(Boolean).join(","), type: escalationStage,
+        subject: `OVERDUE ACTION ITEM (${daysOverdue} Days) ${teamTag}— ${actionId}`,
+        body: `ATTENTION REQUIRED\n\nThis action item is OVERDUE by ${daysOverdue} day(s).\n\nAction ID: ${actionId}\nAction: ${actionItem}\nResponsible Person: ${respPerson}\nAccountable Person: ${accPerson}\nDue Date: ${formatDate(dueDate)}\nDays Overdue: ${daysOverdue}\nCurrent Status: ${status}\nEscalation Stage: ${escalationStage}\n\nPlease update the status or resolve immediately.\n\n${orgName} Action Item Tracker`
+      };
+    }
 
-      const recipientStr = recipients.filter(Boolean).join(",");
-      if (recipientStr) {
-        const subject = `OVERDUE ACTION ITEM (${daysOverdue} Days) ${isTeamWide ? '(All Team Members) ' : ''}— ${actionId}`;
-        const body = `ATTENTION REQUIRED\n\nThis action item is OVERDUE by ${daysOverdue} day(s).\n\nAction ID: ${actionId}\nAction: ${actionItem}\nResponsible Person: ${respPerson}\nAccountable Person: ${accPerson}\nDue Date: ${formatDate(dueDate)}\nDays Overdue: ${daysOverdue}\nCurrent Status: ${status}\nEscalation Stage: ${escalationStage}\n\nPlease update the status or resolve immediately.\n\n${orgName} Action Item Tracker`;
-        sendEmailAndLog(recipientStr, subject, body, actionId, escalationStage, respPerson, sheet, rowIndex, escalationStage);
-      }
+    if (!message) continue;
+    const result = sendEmailAndLog(message.to, message.subject, message.body, actionId, message.type, respPerson, sheet, rowIndex, message.type, dryRun);
+    summary[result] = (summary[result] || 0) + 1;
+    if (result === "quota") {
+      summary.quotaStop = true;
+      Logger.log("⛔ Daily email quota reached. Stopped at " + actionId + "; remaining reminders will go out on the next run.");
+      break;
     }
   }
+
+  Logger.log((dryRun ? "[PREVIEW] " : "") + "Reminder run finished: " + JSON.stringify(summary));
+  return summary;
 }
 
 function sendBlockedNotification(sheet, rowIndex) {
@@ -510,9 +713,9 @@ function sendBlockedNotification(sheet, rowIndex) {
   const actionId = row[0];
   const actionItem = row[5];
   const respPerson = row[9];
-  const respEmail = row[10] || getPersonEmail(respPerson);
+  const respEmail = resolveEmail_(respPerson, row[10]);
   const accPerson = row[11];
-  const accEmail = row[12] || getPersonEmail(accPerson);
+  const accEmail = resolveEmail_(accPerson, row[12]);
   const blockerText = row[22];
 
   const recipients = [respEmail, accEmail].filter(Boolean).join(",");
@@ -525,17 +728,40 @@ function sendBlockedNotification(sheet, rowIndex) {
   sendEmailAndLog(recipients, subject, body, actionId, "Blocked Notification", respPerson, sheet, rowIndex, "Blocked");
 }
 
-function sendEmailAndLog(recipientEmail, subject, body, actionId, reminderType, recipientName, sheet, rowIndex, stageName) {
+// Sends one email and records the result in the Reminder Log.
+// Returns "sent", "failed", "skipped" (no real address), "quota" or "preview".
+function sendEmailAndLog(recipientEmail, subject, body, actionId, reminderType, recipientName, sheet, rowIndex, stageName, dryRun) {
+  const recipients = cleanRecipients_(recipientEmail);
+  if (!recipients.valid.length) {
+    const why = recipients.placeholders.length
+      ? "Only placeholder addresses (" + recipients.placeholders.join(", ") + "). Put real emails in the People tab."
+      : "No email address found. Check the People tab.";
+    if (dryRun) Logger.log("[PREVIEW] SKIP " + reminderType + " " + actionId + ": " + why);
+    else logReminder(new Date(), actionId, reminderType, recipientName, String(recipientEmail || ""), "Skipped", why);
+    return "skipped";
+  }
+  const to = recipients.valid.join(",");
+  if (dryRun) {
+    Logger.log("[PREVIEW] " + reminderType + " " + actionId + " → " + to);
+    return "preview";
+  }
   try {
+    const left = MailApp.getRemainingDailyQuota();
+    if (left < recipients.valid.length) {
+      logReminder(new Date(), actionId, reminderType, recipientName, to, "Failed", "Daily email quota reached (" + left + " left). Will retry on the next run.");
+      return "quota";
+    }
     const senderName = getSetting("Reminder Email Sender Name", "Action Item Tracker");
-    MailApp.sendEmail({ to: recipientEmail, subject: subject, body: body, name: senderName });
+    MailApp.sendEmail({ to: to, subject: subject, body: body, name: senderName });
     const now = new Date();
     sheet.getRange(rowIndex, 26).setValue(stageName);
     sheet.getRange(rowIndex, 27).setValue(now);
-    logReminder(now, actionId, reminderType, recipientName, recipientEmail, "Sent", "Email delivered successfully");
+    logReminder(now, actionId, reminderType, recipientName, to, "Sent", "Email delivered successfully");
+    return "sent";
   } catch (e) {
     Logger.log("Error sending email: " + e);
-    logReminder(new Date(), actionId, reminderType, recipientName, recipientEmail, "Failed", e.toString());
+    logReminder(new Date(), actionId, reminderType, recipientName, to, "Failed", e.toString());
+    return "failed";
   }
 }
 
@@ -555,21 +781,110 @@ function formatDate(d) {
   return dateObj.toISOString().split('T')[0];
 }
 
+/**
+ * RUN ONCE from the editor to schedule the automated emails:
+ * - sendDailyReminders every day at "Reminder Hour" (Settings tab, default 8)
+ * - sendPersonalizedEmailDigests per "Digest Frequency" (Weekly (default) / Daily / Off),
+ *   on "Digest Day" (default Monday) when weekly.
+ * Safe to re-run: it replaces only these two triggers, never duplicates them,
+ * and leaves any other triggers (e.g. form submit) alone.
+ */
 function installTriggers() {
   uninstallTriggers();
   const reminderHour = parseInt(getSetting("Reminder Hour", 8), 10);
-  ScriptApp.newTrigger("sendDailyReminders")
-    .timeBased()
-    .everyDays(1)
-    .atHour(reminderHour)
-    .create();
-  Logger.log("✅ Installed Daily Reminder Trigger at " + reminderHour + ":00 AM");
+
+  ScriptApp.newTrigger("sendDailyReminders").timeBased().everyDays(1).atHour(reminderHour).create();
+  Logger.log("✅ Daily reminders scheduled around " + reminderHour + ":00.");
+
+  const frequency = String(getSetting("Digest Frequency", "Weekly")).trim().toLowerCase();
+  if (typeof sendPersonalizedEmailDigests !== "function") {
+    Logger.log("⚠️ Digest not scheduled: add PersonalizedEmailDigest.gs to this Apps Script project first.");
+  } else if (frequency === "off") {
+    Logger.log("ℹ️ Digest is turned off (Settings → Digest Frequency = Off).");
+  } else if (frequency === "daily") {
+    ScriptApp.newTrigger("sendPersonalizedEmailDigests").timeBased().everyDays(1).atHour(reminderHour).create();
+    Logger.log("✅ Personal digest scheduled daily around " + reminderHour + ":00.");
+  } else {
+    const dayName = String(getSetting("Digest Day", "Monday")).trim().toUpperCase();
+    const weekDay = ScriptApp.WeekDay[dayName] || ScriptApp.WeekDay.MONDAY;
+    ScriptApp.newTrigger("sendPersonalizedEmailDigests").timeBased().onWeekDay(weekDay).atHour(reminderHour).create();
+    Logger.log("✅ Personal digest scheduled weekly on " + weekDay + " around " + reminderHour + ":00.");
+  }
 }
 
+// Removes only the email triggers this script manages.
 function uninstallTriggers() {
+  let removed = 0;
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (MANAGED_TRIGGERS.indexOf(t.getHandlerFunction()) !== -1) {
+      ScriptApp.deleteTrigger(t);
+      removed++;
+    }
+  });
+  Logger.log("Removed " + removed + " existing email trigger(s).");
+}
+
+/** Run from the editor: sends one test email to you (the script owner). */
+function sendTestEmail() {
+  const me = Session.getEffectiveUser().getEmail();
+  MailApp.sendEmail({ to: me, subject: "✅ Action Item Tracker test email",
+    body: "If you can read this, the tracker can send email from this account.\n\nRemaining email quota today: " + MailApp.getRemainingDailyQuota(),
+    name: getSetting("Reminder Email Sender Name", "Action Item Tracker") });
+  Logger.log("✅ Test email sent to " + me);
+}
+
+/**
+ * Run from the editor when emails are not arriving. Prints a checklist in the
+ * execution log. It only reads data; it sends nothing and changes nothing.
+ */
+function checkEmailSetup() {
+  const out = [];
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // 1. Triggers
   const triggers = ScriptApp.getProjectTriggers();
-  for (let i = 0; i < triggers.length; i++) {
-    ScriptApp.deleteTrigger(triggers[i]);
+  out.push("TRIGGERS (" + triggers.length + "):");
+  triggers.forEach(t => out.push("  • " + t.getHandlerFunction() + " — " + t.getEventType()));
+  MANAGED_TRIGGERS.forEach(name => {
+    const n = triggers.filter(t => t.getHandlerFunction() === name).length;
+    if (n === 0) out.push("  ❌ No trigger for " + name + ". Run installTriggers().");
+    if (n > 1) out.push("  ⚠️ " + n + " triggers for " + name + " (duplicates send duplicate emails). Run installTriggers() to reset.");
+  });
+
+  // 2. Quota and account
+  out.push("ACCOUNT: emails are sent from " + Session.getEffectiveUser().getEmail());
+  const quota = MailApp.getRemainingDailyQuota();
+  out.push("QUOTA: " + quota + " recipient(s) left today" + (quota < 10 ? "  ⚠️ almost used up; reminders will fail until tomorrow." : ""));
+
+  // 3. Settings
+  out.push("SETTINGS: Reminder Hour=" + getSetting("Reminder Hour", 8) + ", Due Soon Days=" + getSetting("Due Soon Days", 3) +
+    ", Digest Frequency=" + getSetting("Digest Frequency", "Weekly (default)"));
+  const mgmt = cleanRecipients_(getSetting("Management Escalation Email", ""));
+  if (!mgmt.valid.length) out.push("  ⚠️ Management Escalation Email is empty or a placeholder: " + getSetting("Management Escalation Email", "(blank)"));
+
+  // 4. People emails
+  const people = ss.getSheetByName("People");
+  if (!people) out.push("❌ No People tab.");
+  else {
+    const rows = people.getDataRange().getValues().slice(1).filter(r => r[0] && r[4] !== false && !isTeamWideName_(r[0]));
+    const bad = rows.filter(r => !cleanRecipients_(r[2]).valid.length);
+    out.push("PEOPLE: " + rows.length + " active, " + bad.length + " without a real email" +
+      (bad.length ? ": " + bad.map(r => r[0] + " <" + (r[2] || "blank") + ">").join(", ") : ""));
   }
-  Logger.log("Cleaned up existing triggers.");
+
+  // 5. Recent Reminder Log results
+  const log = ss.getSheetByName("Reminder Log");
+  if (!log) out.push("❌ No Reminder Log tab.");
+  else if (log.getLastRow() < 2) out.push("REMINDER LOG: empty (the daily reminder has never sent or tried to send anything).");
+  else {
+    const start = Math.max(2, log.getLastRow() - 9);
+    const recent = log.getRange(start, 1, log.getLastRow() - start + 1, 7).getValues();
+    out.push("REMINDER LOG (last " + recent.length + "):");
+    recent.forEach(r => out.push("  • " + formatDate(r[0]) + " " + r[1] + " " + r[2] + " → " + r[5] + (r[5] !== "Sent" ? " (" + r[6] + ")" : "")));
+  }
+
+  Logger.log(out.join("\n"));
+
+  // 6. What today's run would send
+  previewTodaysReminders();
 }

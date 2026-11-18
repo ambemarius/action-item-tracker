@@ -8,7 +8,26 @@
 
 function buildTrackerSystem() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
+
+  // SAFETY: this function clears and re-seeds the People, Teams, Action Tracker,
+  // Settings, Reminder Log and Dashboard tabs. Refuse to run on a live workbook
+  // unless someone explicitly confirms.
+  const existingTracker = ss.getSheetByName("Action Tracker");
+  if (existingTracker && existingTracker.getLastRow() > 1) {
+    let ui;
+    try { ui = SpreadsheetApp.getUi(); } catch (e) {
+      throw new Error("Stopped: the Action Tracker already contains data, so nothing was changed.");
+    }
+    const answer = ui.alert(
+      "⚠️ This will ERASE all real data",
+      "The Action Tracker already has " + (existingTracker.getLastRow() - 1) + " rows. Continuing will delete them and the People/Teams/Settings tabs and replace them with sample data. Continue?",
+      ui.ButtonSet.YES_NO);
+    if (answer !== ui.Button.YES) {
+      ui.alert("Cancelled. Nothing was changed.");
+      return;
+    }
+  }
+
   const tabNames = [
     "Action Tracker",
     "Form Responses",
@@ -91,6 +110,7 @@ function setupTeamsSheet(sheet) {
     ["Admin and Finance", true],
     ["Design, media and web", true],
     ["Data Management", true],
+    ["Office Operation", true],
     ["All teams", true]
   ];
 

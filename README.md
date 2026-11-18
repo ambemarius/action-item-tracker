@@ -51,11 +51,22 @@ The system consists of two integrated components:
    - Create a Google Form titled `Action Item Update Form`.
    - Add fields: Action ID, Status (Dropdown), % Complete, Progress Update, Blocker, New Due Date.
 
-### Step 6: Activate Automated Triggers
-1. In Apps Script Editor, select function `installTriggers` and click **Run**.
-2. This automatically configures:
-   - Form Submit triggers for Google Forms.
-   - Daily 08:00 AM timer trigger for `sendDailyReminders()`.
+### Step 6: Activate Automated Emails
+1. In Apps Script Editor, select function `installTriggers` and click **Run** (safe to re-run; it never creates duplicates or removes other triggers).
+2. This schedules:
+   - `sendDailyReminders()` every day at the Settings **Reminder Hour** (default 8).
+   - `sendPersonalizedEmailDigests()` weekly on Monday. Optional Settings rows: **Digest Frequency** (`Weekly` / `Daily` / `Off`) and **Digest Day** (e.g. `Friday`).
+3. If emails don't arrive, run `checkEmailSetup()` and read the execution log. It reads only and changes nothing. It lists triggers, the remaining daily quota, people without real emails, recent Reminder Log results, and what today's run would send. `sendTestEmail()` sends one test email to you.
+
+Emails are never sent to placeholder `@example.org` addresses; those are recorded as "Skipped" in the Reminder Log.
+
+---
+
+## 🔄 Updating the Code on a Live Workbook (keeps all data)
+
+1. Paste the new `Code.gs` (and `Setup.gs`) into the Apps Script editor and save. **Do not run `buildTrackerSystem()`**: it erases and re-seeds the tabs (it now asks for confirmation first).
+2. **Deploy > Manage deployments >** ✏️ edit the existing Web App **> Version: New version > Deploy**. Editing the existing deployment keeps the same URL; "New deployment" would create a different URL.
+3. To add a team without touching other data, run a one-time function such as `addOfficeOperationTeam()`. It only appends one row to the Teams tab.
 
 ---
 
